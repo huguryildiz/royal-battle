@@ -5,12 +5,14 @@ import { initHud } from './ui/hud.js';
 import { initVillage } from './village/scene.js';
 import { initWoodcutting } from './ui/woodcutting.js';
 import { renderInventory } from './ui/inventory.js';
+import { renderShop } from './ui/shop.js';
 
 export const gameState = load();
 initTabs();
 initHud(gameState);
 register('s-is', initWoodcutting(gameState));
 register('s-envanter', { onShow: () => renderInventory(gameState) });
+register('s-dukkan', { onShow: () => renderShop(gameState) });
 
 const village = await initVillage({
   canvas: document.getElementById('village-canvas'),
