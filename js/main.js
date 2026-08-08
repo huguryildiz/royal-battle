@@ -1,8 +1,12 @@
 // js/main.js
 import * as THREE from 'three';
 import { initTabs, show, register } from './screens.js';
+import { load } from './state.js';
+import { initHud } from './ui/hud.js';
 
+export const gameState = load();
 initTabs();
+initHud(gameState);
 const canvas = document.getElementById('village-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
