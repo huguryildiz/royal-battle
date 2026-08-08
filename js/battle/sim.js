@@ -2,12 +2,17 @@
 import { BATTLE_WIN_GOLD, GEM_DROP, LOOT_TABLE } from '../balance.js';
 
 export function createBattle(level) {
-  return { units: [], level, over: false, winner: null, deployed: { player: false, enemy: false } };
+  return {
+    units: [], level, over: false, winner: null,
+    deployed: { player: false, enemy: false },
+    goldMult: 1, atkBoost: 1, cannonUsed: false,
+  };
 }
 
 export function deployUnit(battle, side, stats, x, z) {
+  const boost = side === 'player' ? battle.atkBoost : 1;
   const unit = {
-    side, atk: stats.atk, def: stats.def, spd: stats.spd, range: stats.range,
+    side, atk: Math.round(stats.atk * boost), def: stats.def, spd: stats.spd, range: stats.range,
     hp: stats.def * 10, maxHp: stats.def * 10, x, z, target: null, cooldown: 0,
   };
   battle.units.push(unit);
@@ -47,6 +52,30 @@ export function tick(battle, dt) {
       battle.winner = kalanPlayer ? 'player' : 'enemy';
     }
   }
+}
+
+// İksirler: guc-iksiri → oyuncu birimlerine atk +%50 (mevcut + sonraki),
+// altin-iksir → zafer altını ×2, mega-deprem-iksiri → tüm düşmanlara 150 hasar.
+export function applyPotion(battle, tip) {
+  if (tip === 'guc-iksiri') {
+    battle.atkBoost = 1.5;
+    for (const u of battle.units) if (u.side === 'player') u.atk = Math.round(u.atk * 1.5);
+  } else if (tip === 'altin-iksir') {
+    battle.goldMult = 2;
+  } else if (tip === 'mega-deprem-iksiri') {
+    for (const u of battle.units) if (u.side === 'enemy') u.hp -= 150;
+  }
+}
+
+// Top: savaş başına 1 atış, en yüksek canlı düşmana 300 hasar.
+export function fireCannon(battle) {
+  if (battle.cannonUsed) return false;
+  const dusmanlar = battle.units.filter(u => u.side === 'enemy' && u.hp > 0);
+  if (!dusmanlar.length) return false;
+  const hedef = dusmanlar.reduce((a, b) => (b.hp > a.hp ? b : a));
+  hedef.hp -= 300;
+  battle.cannonUsed = true;
+  return true;
 }
 
 export function battleRewards(rng = Math.random) {

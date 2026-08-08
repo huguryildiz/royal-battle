@@ -2,6 +2,7 @@
 import { CHARACTERS } from '../balance.js';
 import { spendGold, spendGems, ownCharacter } from '../state.js';
 import { refreshHud } from './hud.js';
+import { sfx } from './sound.js';
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
 const fmt = n => n.toLocaleString('tr-TR');
@@ -48,7 +49,7 @@ export function renderShop(state) {
   root.querySelectorAll('.buy[data-id]').forEach(b =>
     b.addEventListener('pointerdown', () => {
       const sonuc = buyCharacter(state, b.dataset.id);
-      if (sonuc === 'ok') { refreshHud(state); renderShop(state); }
+      if (sonuc === 'ok') { sfx.coin(); refreshHud(state); renderShop(state); }
       else if (sonuc === 'yetersiz') {
         const msg = root.querySelector(`[data-msg="${b.dataset.id}"]`);
         msg.textContent = 'Yetersiz! Daha çok kazanmalısın.';

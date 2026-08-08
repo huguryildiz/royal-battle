@@ -2,6 +2,7 @@
 import { addGold, addItem } from '../state.js';
 import { WOOD_GOLD } from '../balance.js';
 import { refreshHud } from './hud.js';
+import { sfx } from './sound.js';
 
 export function chopReward(state) {
   addGold(state, WOOD_GOLD);
@@ -29,6 +30,7 @@ export function initWoodcutting(state) {
         if (b.classList.contains('cut')) return;
         b.classList.add('cut');
         cut++;
+        sfx.chop();
         chopReward(state);
         refreshHud(state);
         root.querySelector('.cut-n').textContent = cut;

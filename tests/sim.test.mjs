@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBattle, deployUnit, tick, battleRewards } from '../js/battle/sim.js';
+import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon } from '../js/battle/sim.js';
 import { LOOT_TABLE } from '../js/balance.js';
 
 const OKCU = { atk: 89, def: 30, spd: 100, range: 6 };
@@ -48,6 +48,42 @@ test('iki taraf da sürmeden winner atanmaz', () => {
   assert.equal(b.winner, null);
 });
 
+test('güç iksiri: mevcut ve sonraki oyuncu birimlerinin atk +%50, düşmanlar etkilenmez', () => {
+  const b = createBattle(1);
+  const once = deployUnit(b, 'player', OKCU, 0, 0);
+  applyPotion(b, 'guc-iksiri');
+  const sonra = deployUnit(b, 'player', OKCU, 1, 0);
+  const dusman = deployUnit(b, 'enemy', DINO, 5, 0);
+  assert.equal(once.atk, Math.round(89 * 1.5));
+  assert.equal(sonra.atk, Math.round(89 * 1.5));
+  assert.equal(dusman.atk, 100);
+});
+test('altın iksiri: goldMult 2 olur', () => {
+  const b = createBattle(1);
+  applyPotion(b, 'altin-iksir');
+  assert.equal(b.goldMult, 2);
+});
+test('mega deprem iksiri: tüm düşmanlara 150 hasar, oyuncuya dokunmaz', () => {
+  const b = createBattle(1);
+  const oyuncu = deployUnit(b, 'player', DINO, 0, 0);
+  const d1 = deployUnit(b, 'enemy', DINO, 5, 0);
+  const d2 = deployUnit(b, 'enemy', OKCU, 6, 0); // hp 300
+  applyPotion(b, 'mega-deprem-iksiri');
+  assert.equal(oyuncu.hp, 1000);
+  assert.equal(d1.hp, 850);
+  assert.equal(d2.hp, 150);
+});
+test('top: savaş başına 1 kez, en yüksek canlı düşmana 300 hasar', () => {
+  const b = createBattle(1);
+  deployUnit(b, 'player', OKCU, 0, 0);
+  const guclu = deployUnit(b, 'enemy', DINO, 5, 0);  // hp 1000
+  const zayif = deployUnit(b, 'enemy', OKCU, 6, 0);  // hp 300
+  assert.equal(fireCannon(b), true);
+  assert.equal(guclu.hp, 700);
+  assert.equal(zayif.hp, 300);
+  assert.equal(fireCannon(b), false); // ikinci atış yok
+  assert.equal(guclu.hp, 700);
+});
 test('battleRewards: rng=0.05 → taş düşer (5-15), rng=0.9 → taş 0; gold hep 25', () => {
   const r = battleRewards(() => 0.05);
   assert.equal(r.gold, 25);

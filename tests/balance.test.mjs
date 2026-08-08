@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHARACTERS, WOOD_GOLD, BATTLE_WIN_GOLD, GEM_DROP, enemyWave } from '../js/balance.js';
+import { CHARACTERS, WOOD_GOLD, BATTLE_WIN_GOLD, GEM_DROP, enemyWave, SELL_PRICES, ITEM_NAMES } from '../js/balance.js';
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
 test('statlar spec tablosuyla birebir (Aslan\'ın kararı, değiştirilemez)', () => {
@@ -29,8 +29,14 @@ test('ödül sabitleri spec ile aynı', () => {
   assert.equal(WOOD_GOLD, 2); assert.equal(BATTLE_WIN_GOLD, 25);
   assert.equal(GEM_DROP.chance, 0.2);
 });
-test('düşman dalgası seviyeyle büyür ve güçlenir', () => {
-  assert.equal(enemyWave(1).length, 3);
+test('düşman dalgası seviyeyle büyür ve güçlenir; 1. seviye tek savaşçıyla kazanılabilir', () => {
+  assert.equal(enemyWave(1).length, 1); // ilk savaş kazanılabilir olmalı
+  assert.equal(enemyWave(3).length, 3);
   assert.equal(enemyWave(10).length, 6); // tavan 6
   assert.ok(enemyWave(5)[0].atk > enemyWave(1)[0].atk);
+});
+test('satış fiyatları: envanterdeki her eşyanın fiyatı var ve pozitif', () => {
+  for (const id of Object.keys(ITEM_NAMES)) {
+    assert.ok(SELL_PRICES[id] > 0, id);
+  }
 });

@@ -17,8 +17,13 @@ export const ITEM_NAMES = {
   odun: 'Odun', kalkan: 'Kalkan', kilic: 'Kılıç', yay: 'Yay', tufek: 'Tüfek',
   'guc-iksiri': 'Güç İksiri', 'altin-iksir': 'Altın İksir', 'mega-deprem-iksiri': 'Mega Deprem İksiri',
 };
+export const SELL_PRICES = {
+  odun: 1, kalkan: 15, kilic: 20, yay: 20, tufek: 30,
+  'guc-iksiri': 25, 'altin-iksir': 30, 'mega-deprem-iksiri': 50,
+};
 export function enemyWave(level) {
-  const n = Math.min(2 + level, 6);
+  const n = Math.min(level, 6); // 1. seviye tek düşman: ilk savaş kazanılabilir
+
   const k = 1 + 0.08 * (level - 1);
   return Array.from({ length: n }, () => ({
     atk: Math.round(45 * k), def: Math.round(60 * k), spd: 70, range: 1.8,

@@ -1,10 +1,15 @@
 // js/battle/scene.js — 3D savaş arenası: kart seç → sol yarıya sür, otomatik dövüş.
 import * as THREE from 'three';
-import { createBattle, deployUnit, tick, battleRewards } from './sim.js';
+import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon } from './sim.js';
 import { CHARACTERS, enemyWave, ITEM_NAMES } from '../balance.js';
 import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
+import { sfx } from '../ui/sound.js';
 import { show } from '../screens.js';
+
+const IKSIRLER = [
+  ['guc-iksiri', '💪'], ['altin-iksir', '✨'], ['mega-deprem-iksiri', '🌋'],
+];
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
 
@@ -60,10 +65,31 @@ export function initBattle(state) {
       return `<div class="minicard${kapali}${seciliMi}" data-id="${id}">
         <img src="${c.card}" alt="${c.name}">${c.name}</div>`;
     }).join('');
+    const iksirBtnleri = IKSIRLER
+      .filter(([id]) => state.inventory[id] > 0)
+      .map(([id, ikon]) => `<button class="actbtn" data-iksir="${id}">${ikon} ${ITEM_NAMES[id]} ×${state.inventory[id]}</button>`)
+      .join('');
+    const topBtn = `<button class="actbtn" data-top="1" ${battle?.cannonUsed ? 'disabled' : ''}>💣 Top${battle?.cannonUsed ? ' (kullanıldı)' : ''}</button>`;
     ui.innerHTML = `<div class="handrow">${kartlar}</div>
+      <div class="actrow">${topBtn}${iksirBtnleri}</div>
       <p class="map-hint" style="color:#F5EBD3;margin:.2rem 0">Karta dokun, sonra sol yarıya dokunup sür — Seviye ${state.battleLevel}</p>`;
     ui.querySelectorAll('.minicard:not(.used)').forEach(k =>
       k.addEventListener('pointerdown', () => { secili = k.dataset.id; elCiz(); }));
+    ui.querySelectorAll('[data-iksir]').forEach(b =>
+      b.addEventListener('pointerdown', () => {
+        const tip = b.dataset.iksir;
+        if (!battle || battle.over || !(state.inventory[tip] > 0)) return;
+        state.inventory[tip] -= 1;
+        if (state.inventory[tip] === 0) delete state.inventory[tip];
+        applyPotion(battle, tip);
+        sfx.potion();
+        refreshHud(state);
+        elCiz();
+      }));
+    ui.querySelector('[data-top]')?.addEventListener('pointerdown', () => {
+      if (!battle || battle.over) return;
+      if (fireCannon(battle)) { sfx.cannon(); elCiz(); }
+    });
   }
 
   function baslat() {
@@ -88,6 +114,7 @@ export function initBattle(state) {
     unitEkle(u, charId);
     surulenler.add(charId);
     secili = null;
+    sfx.deploy();
     elCiz();
   }
 
@@ -108,13 +135,16 @@ export function initBattle(state) {
     panel.className = 'victory';
     if (battle.winner === 'player') {
       const odul = battleRewards();
-      addGold(state, odul.gold);
+      const kazanilanAltin = odul.gold * battle.goldMult; // altın iksiri ×2
+      addGold(state, kazanilanAltin);
       addItem(state, odul.loot, 1);
       if (odul.gems) addGems(state, odul.gems);
       state.battleLevel += 1;
       refreshHud(state);
-      panel.innerHTML = `<b>Zafer!</b> +${odul.gold} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
+      sfx.victory();
+      panel.innerHTML = `<b>Zafer!</b> +${kazanilanAltin} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
     } else {
+      sfx.defeat();
       panel.innerHTML = `<b>Kaybettin</b> Tekrar dene!<br><br>`;
     }
     const don = document.createElement('button');
