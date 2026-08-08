@@ -72,7 +72,7 @@ export function initBattle(state) {
   }
   addEventListener('resize', resize);
 
-  // Dünya → ekran: arena (10×20) tuvale sığdırılır, oyuncu altta (z+ aşağı).
+  // Dünya → ekran: arena (ARENA.w × ARENA.h) tuvale sığdırılır, oyuncu altta (z+ aşağı).
   function metrics() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     const s = Math.min(w / (ARENA.w + 0.8), h / (ARENA.h + 1));
