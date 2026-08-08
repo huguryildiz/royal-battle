@@ -1,7 +1,12 @@
-// js/battle/scene.js — 3D savaş arenası: kart seç → sol yarıya sür, otomatik dövüş.
-import * as THREE from 'three';
-import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle } from './sim.js';
-import { CHARACTERS, enemyWave, isBossLevel, ITEM_NAMES } from '../balance.js';
+// js/battle/scene.js — Clash Royale tarzı 2D savaş arenası (Canvas2D).
+// Dikey arena: üstte düşman, altta oyuncu; nehir + iki köprü, her tarafta
+// 2 yan kule + 1 kral kulesi. Kart seç → alt yarıya dokun, iksirle sür.
+// Brawl Stars dokunuşları: takım halkası, isimli can barı, çalılıklar, vuruş efektleri.
+import {
+  createBattle, deployUnit, addTowers, tick, battleRewards,
+  applyPotion, fireCannon, equipRifle, spendElixir, ARENA, ELIXIR,
+} from './sim.js';
+import { CHARACTERS, enemyWave, isBossLevel, ITEM_NAMES, ELIXIR_COST } from '../balance.js';
 import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
 import { sfx } from '../ui/sound.js';
@@ -12,107 +17,76 @@ const IKSIRLER = [
 ];
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
-// enemyWave tipi → karakter modeli
-const DUSMAN_MESH = { asker: 'dusman', okcu: 'dusman-okcu', boss: 'boss' };
+const DUSMAN = {
+  asker: { ad: 'Asker', ikon: '⚔️', renk: '#5A5F66', r: 0.62 },
+  okcu: { ad: 'Okçu', ikon: '🏹', renk: '#3E7C4F', r: 0.62 },
+  boss: { ad: 'Boss', ikon: '👹', renk: '#7A1F1F', r: 1.05 },
+};
+const R_OYUNCU = { 'maden-dinozoru': 0.8, 'buz-ejderhasi': 0.72, boss: 1.05 };
 
-import { buildCharacter } from '../characters/builder.js';
-
-// --- Animasyon: Kenney klipleri (insansılar) / sinüs sallanması (kutu-inşa) ---
-const KLIP = { idle: 'idle', walk: 'walk', vurus: 'attack-melee-right' };
-
-function animKur(mesh) {
-  const klipler = mesh.userData.klipler;
-  if (!klipler?.length) return null;
-  const mixer = new THREE.AnimationMixer(mesh);
-  const kayit = { mixer, aktif: null, cd: 0, vurusKalan: 0 };
-  for (const [ad, klipAdi] of Object.entries(KLIP)) {
-    const klip = THREE.AnimationClip.findByName(klipler, klipAdi);
-    if (klip) kayit[ad] = mixer.clipAction(klip);
-  }
-  kayit.vurus?.setLoop(THREE.LoopOnce, 1);
-  return kayit;
+// Kart görselleri: birim jetonlarında yuvarlak kırpılarak kullanılır.
+const kartImg = new Map();
+for (const c of CHARACTERS) {
+  const im = new Image();
+  im.src = c.card;
+  kartImg.set(c.id, im);
 }
 
-function animGec(kayit, ad, sure = 0.25) {
-  const yeni = kayit[ad];
-  if (!yeni || kayit.aktif === yeni) return;
-  yeni.reset().fadeIn(sure).play();
-  kayit.aktif?.fadeOut(sure);
-  kayit.aktif = yeni;
-}
+const RENK = {
+  cim1: '#74B35C', cim2: '#6CA954', cali: '#4E8F3D', caliKoyu: '#3E7A30',
+  nehir: '#5FB4DC', nehirKoyu: '#4A9CC7', kopru: '#A0693A', kopruKoyu: '#7C4E28',
+  tas: '#AEB6BD', tasKoyu: '#5F6873', tasAcik: '#C6CDD4',
+  oyuncu: '#3E7CC7', dusman: '#D96C4F',
+};
 
-// Menzil dışında yürüme, menzilde bekleme; cooldown sıfırlandığı an tek seferlik vuruş.
-function animIlerlet(mesh, unit, dt, simdi) {
-  const kayit = mesh.userData.anim;
-  if (!kayit) {
-    if (mesh.userData.sallan) mesh.rotation.z = Math.sin(simdi / 260 + mesh.id) * 0.07;
-    return;
-  }
-  kayit.mixer.update(dt);
-  const hedef = unit.target;
-  const menzilde = hedef && hedef.hp > 0 && Math.hypot(hedef.x - unit.x, hedef.z - unit.z) <= unit.range;
-  if (menzilde && kayit.vurus && unit.cooldown > kayit.cd + 1e-6) {
-    kayit.vurus.reset().fadeIn(0.08).play();
-    if (kayit.aktif && kayit.aktif !== kayit.vurus) kayit.aktif.fadeOut(0.08);
-    kayit.aktif = kayit.vurus;
-    kayit.vurusKalan = kayit.vurus.getClip().duration;
-  }
-  kayit.cd = unit.cooldown;
-  if (kayit.vurusKalan > 0) { kayit.vurusKalan -= dt; return; }
-  animGec(kayit, hedef && !menzilde ? 'walk' : 'idle');
-}
+// Çalılık kümeleri (dünya koordinatı, dekoratif — çarpışma yok)
+const CALILAR = [
+  [-4.2, -3.2], [-3.7, -2.6], [4.1, -4.4], [3.6, -3.9], [0.2, -4.6],
+  [-4.1, 3.4], [-3.5, 3.9], [4.2, 2.8], [3.7, 3.4], [0.3, 4.4], [-0.4, 4.8],
+];
 
 export function initBattle(state) {
   const canvas = document.getElementById('battle-canvas');
   const ui = document.getElementById('battle-ui');
   const ekran = document.getElementById('s-savas');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x9bcfe0);
-  const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
-  camera.position.set(0, 16, 14); camera.lookAt(0, 0, 0);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(10, 20, 8); scene.add(sun);
-  const arena = new THREE.Mesh(new THREE.PlaneGeometry(24, 14), new THREE.MeshLambertMaterial({ color: 0x74b35c }));
-  arena.rotation.x = -Math.PI / 2; scene.add(arena);
-  const cizgi = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 14), new THREE.MeshLambertMaterial({ color: 0x2b2117 }));
-  cizgi.rotation.x = -Math.PI / 2; cizgi.position.y = 0.01; scene.add(cizgi);
+  const ctx = canvas.getContext('2d');
 
   let battle = null;
-  let secili = null;          // seçili karakter id
-  let surulenler = new Set(); // bu savaşta sürülen karakterler
-  let tufekBekliyor = false;  // sürülecek sonraki birime tüfek takılsın mı
-  const meshler = new Map();  // unit → mesh
+  let secili = null;
+  let tufekBekliyor = false;
   let sonucVerildi = false;
+  let kuyruk = [];        // sürülmeyi bekleyen düşman dalgası
+  let spawnT = 0;
+  let laneI = 0;
+  let prevUnits = new Set();
+  let oklar = [], carpmalar = [], sayilar = [], pofler = [];
+  let elixFill = null, elixNum = null, sonElixTam = -1;
+  let dpr = 1;
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
-    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
   }
   addEventListener('resize', resize);
 
-  function unitEkle(unit, charId) {
-    const savas = battle;
-    buildCharacter(charId).then(mesh => {
-      // Model yüklenene dek birim ölmüş ya da savaş sıfırlanmış olabilir
-      if (battle !== savas || !battle.units.includes(unit)) return;
-      mesh.position.set(unit.x, 0, unit.z);
-      // Yürüyüş animasyonu yönlü: rakibe 45° dönük dur ki hem yüz hem adım görünsün.
-      mesh.rotation.y = unit.side === 'enemy' ? -Math.PI / 4 : Math.PI / 4;
-      mesh.userData.anim = animKur(mesh);
-      scene.add(mesh);
-      meshler.set(unit, mesh);
-    });
+  // Dünya → ekran: arena (10×20) tuvale sığdırılır, oyuncu altta (z+ aşağı).
+  function metrics() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const s = Math.min(w / (ARENA.w + 0.8), h / (ARENA.h + 1));
+    return { s, cx: w / 2, cy: h / 2, w, h };
   }
 
   function elCiz() {
     const kartlar = state.ownedCharacters.map(id => {
       const c = byId[id];
-      const kapali = surulenler.has(id) ? ' used' : '';
+      const maliyet = ELIXIR_COST[id] ?? 4;
+      const pahali = battle && battle.elixir < maliyet ? ' pahali' : '';
       const seciliMi = secili === id ? ' selected' : '';
-      return `<div class="minicard${kapali}${seciliMi}" data-id="${id}">
+      return `<div class="minicard${pahali}${seciliMi}" data-id="${id}">
+        <span class="cost">${maliyet}</span>
         <img src="${c.card}" alt="${c.name}">${c.name}</div>`;
     }).join('');
     const iksirBtnleri = IKSIRLER
@@ -125,11 +99,15 @@ export function initBattle(state) {
       : '';
     const ipucu = tufekBekliyor
       ? '🔫 Tüfek hazır — süreceğin sonraki birim uzaktan vuracak'
-      : `Karta dokun, sonra sol yarıya dokunup sür — Seviye ${state.battleLevel}`;
-    ui.innerHTML = `<div class="handrow">${kartlar}</div>
+      : `Karta dokun, sonra alt yarıya dokunup sür — Seviye ${state.battleLevel}`;
+    ui.innerHTML = `<div class="elixrow">🧪<div class="elixbar"><div class="fill"></div></div><span class="elixn">0</span></div>
+      <div class="handrow">${kartlar}</div>
       <div class="actrow">${topBtn}${tufekBtn}${iksirBtnleri}</div>
       <p class="map-hint" style="color:#F5EBD3;margin:.2rem 0">${ipucu}</p>`;
-    ui.querySelectorAll('.minicard:not(.used)').forEach(k =>
+    elixFill = ui.querySelector('.elixbar .fill');
+    elixNum = ui.querySelector('.elixn');
+    sonElixTam = -1; // re-render sonrası sayaç ve "yetmiyor" görünümü tazelensin
+    ui.querySelectorAll('.minicard').forEach(k =>
       k.addEventListener('pointerdown', () => { secili = k.dataset.id; elCiz(); }));
     ui.querySelectorAll('[data-iksir]').forEach(b =>
       b.addEventListener('pointerdown', () => {
@@ -153,49 +131,68 @@ export function initBattle(state) {
     });
   }
 
+  // Her tam iksir değişiminde kartların "yetmiyor" görünümünü tazele (tam re-render'sız).
+  function pahaliGuncelle() {
+    ui.querySelectorAll('.minicard').forEach(k => {
+      const maliyet = ELIXIR_COST[k.dataset.id] ?? 4;
+      k.classList.toggle('pahali', !battle || battle.over || battle.elixir < maliyet);
+    });
+  }
+
   function baslat() {
-    // Eski meshleri temizle
-    for (const m of meshler.values()) scene.remove(m);
-    meshler.clear();
     ekran.querySelector('.victory')?.remove();
     battle = createBattle(state.battleLevel);
-    secili = null; surulenler = new Set(); sonucVerildi = false; tufekBekliyor = false;
-    for (const [i, stats] of enemyWave(state.battleLevel).entries()) {
-      const boss = stats.tip === 'boss';
-      const u = deployUnit(battle, 'enemy', stats,
-        boss ? 8 : 5 + (i % 2) * 2.5, boss ? 0 : -4 + Math.floor(i / 2) * 2.5);
-      unitEkle(u, DUSMAN_MESH[stats.tip] ?? 'dusman');
-    }
+    addTowers(battle, 1 + 0.08 * (state.battleLevel - 1));
+    secili = null; sonucVerildi = false; tufekBekliyor = false;
+    kuyruk = enemyWave(state.battleLevel).slice();
+    spawnT = 1.5; laneI = 0;
+    oklar = []; carpmalar = []; sayilar = []; pofler = [];
+    prevUnits = new Set(battle.units);
     elCiz();
     resize();
   }
 
   function sur(charId, x, z) {
-    if (!battle || battle.over || surulenler.has(charId)) return;
+    if (!battle || battle.over) return;
+    const maliyet = ELIXIR_COST[charId] ?? 4;
+    if (!spendElixir(battle, maliyet)) return;
     const c = byId[charId];
     const u = deployUnit(battle, 'player', { atk: c.atk, def: c.def, spd: c.spd, range: c.range }, x, z);
+    u.gorselId = charId;
+    u.r = R_OYUNCU[charId] ?? 0.62;
+    u.ad = c.name;
     if (tufekBekliyor && state.inventory.tufek > 0 && equipRifle(battle, u)) {
       state.inventory.tufek -= 1;
       if (state.inventory.tufek === 0) delete state.inventory.tufek;
       tufekBekliyor = false;
       refreshHud(state);
     }
-    unitEkle(u, charId);
-    surulenler.add(charId);
+    prevUnits.add(u);
     secili = null;
     sfx.deploy();
     elCiz();
   }
 
+  function dusmanSur(stats) {
+    const boss = stats.tip === 'boss';
+    const x = boss ? 0 : (laneI++ % 2 ? ARENA.bridgeX : -ARENA.bridgeX);
+    const u = deployUnit(battle, 'enemy', stats, x, -7.4);
+    u.dusmanTip = stats.tip;
+    u.r = DUSMAN[stats.tip]?.r ?? 0.62;
+    u.ad = DUSMAN[stats.tip]?.ad ?? 'Düşman';
+    prevUnits.add(u);
+  }
+
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
   canvas.addEventListener('pointerdown', e => {
     if (!secili || !battle || battle.over) return;
+    const { s, cx, cy } = metrics();
     const r = canvas.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    const ray = new THREE.Raycaster();
-    ray.setFromCamera(ndc, camera);
-    const hit = ray.intersectObject(arena)[0];
-    if (!hit || hit.point.x > 0) return; // sadece sol yarı
-    sur(secili, hit.point.x, hit.point.z);
+    const x = (e.clientX - r.left - cx) / s;
+    const z = (e.clientY - r.top - cy) / s;
+    if (z < 0.6) return; // sadece kendi (alt) yarın
+    sur(secili, clamp(x, -5.4, 5.4), clamp(z, 0.9, 9.4));
   });
 
   function sonuc() {
@@ -213,10 +210,10 @@ export function initBattle(state) {
       state.battleLevel += 1;
       refreshHud(state);
       sfx.victory();
-      panel.innerHTML = `<b>${bossMult > 1 ? 'Boss yenildi!' : 'Zafer!'}</b> +${kazanilanAltin} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
+      panel.innerHTML = `<b>${bossMult > 1 ? 'Boss yenildi!' : 'Zafer!'}</b> Kral kulesi yıkıldı! +${kazanilanAltin} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
     } else {
       sfx.defeat();
-      panel.innerHTML = `<b>Kaybettin</b> Tekrar dene!<br><br>`;
+      panel.innerHTML = `<b>Kaybettin</b> Kral kulen yıkıldı — tekrar dene!<br><br>`;
     }
     const don = document.createElement('button');
     don.className = 'bigbtn'; don.textContent = 'Köye Dön';
@@ -225,27 +222,333 @@ export function initBattle(state) {
     ekran.appendChild(panel);
   }
 
+  // --- Sim olayları → görsel efektler ---
+  function olayIsle() {
+    for (const ev of battle.events) {
+      const menzilli = ev.from.range > 3;
+      const gec = menzilli ? 0.16 : 0;
+      if (menzilli) {
+        oklar.push({
+          x0: ev.from.x, z0: ev.from.z, x1: ev.to.x, z1: ev.to.z, t: 0, sure: 0.16,
+          buyu: ev.from.side === 'player' && !ev.from.tower
+            && ['buyucu', 'altin-bomba-cicegi', 'buz-ejderhasi'].includes(ev.from.gorselId),
+        });
+      }
+      carpmalar.push({ x: ev.to.x, z: ev.to.z, t: -gec });
+      if (sayilar.length < 30) {
+        sayilar.push({ x: ev.to.x + (Math.min(sayilar.length, 3) - 1) * 0.35, z: ev.to.z - 0.9, t: -gec, deger: Math.round(ev.from.atk * 0.5) });
+      }
+    }
+    battle.events.length = 0;
+  }
+
+  function olumleriBul() {
+    const simdiki = new Set(battle.units);
+    for (const u of prevUnits) {
+      if (!simdiki.has(u)) pofler.push({ x: u.x, z: u.z, t: 0, r: u.tower ? 1.5 : (u.r ?? 0.62) });
+    }
+    prevUnits = simdiki;
+  }
+
+  // --- Çizim ---
+  function ciz(dt) {
+    const { s, cx, cy, w, h } = metrics();
+    if (!w || !h) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const X = x => cx + x * s, Y = z => cy + z * s;
+    ctx.fillStyle = '#9BCFE0';
+    ctx.fillRect(0, 0, w, h);
+
+    const ax = X(-ARENA.w / 2), ay = Y(-ARENA.h / 2), aw = ARENA.w * s, ah = ARENA.h * s;
+    // Arena zemini (yuvarlatılmış, kırpılır)
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(ax, ay, aw, ah, 10);
+    ctx.clip();
+    ctx.fillStyle = RENK.cim1;
+    ctx.fillRect(ax, ay, aw, ah);
+    ctx.fillStyle = RENK.cim2;
+    for (let i = 0; i < 10; i++) if (i % 2) ctx.fillRect(ax, ay + (i * ah) / 10, aw, ah / 10);
+    // Çalılıklar (Brawl Stars havası — dekoratif)
+    for (const [bx, bz] of CALILAR) {
+      for (const [ox, oz, or_] of [[0, 0, 0.5], [-0.38, 0.16, 0.34], [0.36, 0.2, 0.36], [0.05, -0.3, 0.34]]) {
+        ctx.fillStyle = (ox + oz) > 0 ? RENK.cali : RENK.caliKoyu;
+        ctx.beginPath();
+        ctx.arc(X(bx + ox), Y(bz + oz), or_ * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Nehir + dalgalar
+    ctx.fillStyle = RENK.nehir;
+    ctx.fillRect(ax, Y(-ARENA.riverHalf), aw, ARENA.riverHalf * 2 * s);
+    ctx.strokeStyle = RENK.nehirKoyu;
+    ctx.lineWidth = 2;
+    for (const [dx, dz] of [[-3.9, -0.3], [-1.2, 0.35], [0.8, -0.35], [4, 0.3]]) {
+      ctx.beginPath();
+      ctx.arc(X(dx), Y(dz), 0.22 * s, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+    }
+    // Köprüler
+    for (const bx of [-ARENA.bridgeX, ARENA.bridgeX]) {
+      const kx = X(bx - 0.95), ky = Y(-1.15), kw = 1.9 * s, kh = 2.3 * s;
+      ctx.fillStyle = RENK.kopru;
+      ctx.fillRect(kx, ky, kw, kh);
+      ctx.strokeStyle = RENK.kopruKoyu;
+      ctx.lineWidth = 2;
+      for (let i = 1; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(kx, ky + (i * kh) / 5);
+        ctx.lineTo(kx + kw, ky + (i * kh) / 5);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = RENK.kopruKoyu;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(kx, ky, kw, kh);
+    }
+    // Kart seçiliyken sürme bölgesi vurgusu (alt yarı)
+    if (secili && battle && !battle.over) {
+      ctx.fillStyle = 'rgba(233,179,60,.16)';
+      ctx.fillRect(ax, Y(0.9), aw, Y(ARENA.h / 2) - Y(0.9));
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = '#E9B33C';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(ax + 3, Y(0.9), aw - 6, Y(ARENA.h / 2) - Y(0.9) - 3);
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+    // Arena çerçevesi
+    ctx.strokeStyle = RENK.kopruKoyu;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(ax, ay, aw, ah, 10);
+    ctx.stroke();
+
+    // Birimler + kuleler (üstten alta boyama sırası)
+    if (battle) {
+      const liste = [...battle.units].sort((a, b) => a.z - b.z);
+      for (const u of liste) (u.tower ? kuleCiz : birimCiz)(u, s, X, Y);
+    }
+
+    // Oklar / mermiler
+    for (const ok of oklar) {
+      ok.t += dt;
+      const t = Math.min(ok.t / ok.sure, 1);
+      const px = X(ok.x0 + (ok.x1 - ok.x0) * t), py = Y(ok.z0 + (ok.z1 - ok.z0) * t);
+      ctx.fillStyle = ok.buyu ? '#FFD94A' : '#2B2117';
+      ctx.beginPath();
+      ctx.arc(px, py, ok.buyu ? 5 : 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      if (ok.buyu) {
+        ctx.fillStyle = 'rgba(255,217,74,.35)';
+        ctx.beginPath();
+        ctx.arc(px, py, 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    oklar = oklar.filter(o => o.t < o.sure);
+
+    // Vuruş kıvılcımları (yıldız patlaması)
+    for (const c of carpmalar) {
+      c.t += dt;
+      if (c.t < 0) continue;
+      const p = c.t / 0.25;
+      ctx.strokeStyle = `rgba(255,235,160,${1 - p})`;
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + 0.5;
+        const r0 = 0.12 * s + p * 0.3 * s, r1 = r0 + 0.22 * s * (1 - p);
+        ctx.beginPath();
+        ctx.moveTo(X(c.x) + Math.cos(a) * r0, Y(c.z) + Math.sin(a) * r0);
+        ctx.lineTo(X(c.x) + Math.cos(a) * r1, Y(c.z) + Math.sin(a) * r1);
+        ctx.stroke();
+      }
+    }
+    carpmalar = carpmalar.filter(c => c.t < 0.25);
+
+    // Hasar sayıları
+    ctx.textAlign = 'center';
+    for (const n of sayilar) {
+      n.t += dt;
+      if (n.t < 0) continue;
+      const p = n.t / 0.7;
+      ctx.font = `900 ${Math.max(11, Math.round(0.34 * s))}px "Avenir Next","Trebuchet MS",sans-serif`;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(43,33,23,${0.9 * (1 - p)})`;
+      ctx.fillStyle = `rgba(255,243,220,${1 - p})`;
+      const py = Y(n.z) - p * 18;
+      ctx.strokeText(`-${n.deger}`, X(n.x), py);
+      ctx.fillText(`-${n.deger}`, X(n.x), py);
+    }
+    sayilar = sayilar.filter(n => n.t < 0.7);
+
+    // Ölüm pofları
+    for (const p of pofler) {
+      p.t += dt;
+      const q = p.t / 0.35;
+      ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - q)})`;
+      ctx.lineWidth = 5 * (1 - q) + 1;
+      ctx.beginPath();
+      ctx.arc(X(p.x), Y(p.z), (p.r + q * 0.9) * s, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    pofler = pofler.filter(p => p.t < 0.35);
+  }
+
+  function kuleCiz(u, s, X, Y) {
+    const b = u.tower === 'king' ? 2.2 : 1.7;
+    const px = X(u.x) - (b * s) / 2, py = Y(u.z) - (b * s) / 2, ps = b * s;
+    ctx.fillStyle = 'rgba(43,33,23,.18)';
+    ctx.beginPath();
+    ctx.ellipse(X(u.x), Y(u.z) + ps * 0.42, ps * 0.5, ps * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = RENK.tas;
+    ctx.strokeStyle = RENK.tasKoyu;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(px, py, ps, ps, 6);
+    ctx.fill();
+    ctx.stroke();
+    // Mazgal dişleri
+    ctx.fillStyle = RENK.tasAcik;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(px + ps * (0.1 + i * 0.32), py - ps * 0.1, ps * 0.16, ps * 0.14);
+    }
+    // Takım şeridi
+    ctx.fillStyle = u.side === 'player' ? RENK.oyuncu : RENK.dusman;
+    ctx.fillRect(px + 2, py + ps * 0.4, ps - 4, ps * 0.2);
+    // Kale kapısı: oyuncuya (ekranın altına) dönük kemerli ahşap kapı
+    const kg = ps * 0.3, kh = ps * 0.32, kx = X(u.x), ky = py + ps - 1;
+    ctx.fillStyle = RENK.kopru;
+    ctx.strokeStyle = RENK.kopruKoyu;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(kx - kg / 2, ky);
+    ctx.lineTo(kx - kg / 2, ky - kh + kg / 2);
+    ctx.arc(kx, ky - kh + kg / 2, kg / 2, Math.PI, 0);
+    ctx.lineTo(kx + kg / 2, ky);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    if (u.tower === 'king') {
+      ctx.font = `${Math.round(ps * 0.42)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('👑', X(u.x), py + ps * 0.22);
+      ctx.textBaseline = 'alphabetic';
+    }
+    canBar(u, s, X, Y, b * 0.95, py - ps * 0.22);
+  }
+
+  function birimCiz(u, s, X, Y) {
+    const r = (u.r ?? 0.62) * s;
+    const px = X(u.x), py = Y(u.z);
+    // Takım halkası (yerde, ışıklı)
+    const halka = u.side === 'player' ? RENK.oyuncu : RENK.dusman;
+    ctx.fillStyle = u.side === 'player' ? 'rgba(62,124,199,.30)' : 'rgba(217,108,79,.30)';
+    ctx.beginPath();
+    ctx.ellipse(px, py + r * 0.62, r * 1.1, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = halka;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.ellipse(px, py + r * 0.62, r * 1.1, r * 0.45, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Jeton: kart görseli (oyuncu) ya da renkli disk + ikon (düşman)
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.clip();
+    const im = u.gorselId ? kartImg.get(u.gorselId) : null;
+    if (im?.complete && im.naturalWidth) {
+      // Kapak: kısa kenara göre ölçekle, üstten hizala (yüzler kartın üstünde)
+      const olcek = (r * 2) / Math.min(im.naturalWidth, im.naturalHeight);
+      ctx.drawImage(im, px - (im.naturalWidth * olcek) / 2, py - r, im.naturalWidth * olcek, im.naturalHeight * olcek);
+    } else {
+      ctx.fillStyle = DUSMAN[u.dusmanTip]?.renk ?? halka;
+      ctx.fillRect(px - r, py - r, r * 2, r * 2);
+      ctx.font = `${Math.round(r * 1.15)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(DUSMAN[u.dusmanTip]?.ikon ?? '❓', px, py + r * 0.05);
+      ctx.textBaseline = 'alphabetic';
+    }
+    ctx.restore();
+    ctx.strokeStyle = halka;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.stroke();
+    if (u.rifle) {
+      ctx.font = `${Math.round(r * 0.8)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText('🔫', px + r * 0.8, py - r * 0.7);
+    }
+    // Birim etiketi ayakların altında: kuleye alttan yaklaşan birimler kule barıyla çakışmaz.
+    canBar(u, s, X, Y, 1.5, py + r * 1.15, true);
+  }
+
+  // Brawl Stars tarzı: isim + sayılı can barı. `adAltta` ise isim barın altına yazılır.
+  function canBar(u, s, X, Y, wWorld, py, adAltta = false) {
+    const bw = wWorld * s, bh = Math.max(5, 0.16 * s);
+    const px = X(u.x) - bw / 2;
+    const oran = Math.max(u.hp / u.maxHp, 0);
+    ctx.font = `800 ${Math.max(9, Math.round(0.24 * s))}px "Avenir Next","Trebuchet MS",sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFF3DC';
+    ctx.strokeStyle = 'rgba(43,33,23,.75)';
+    ctx.lineWidth = 2.5;
+    if (u.ad) {
+      const ay = adAltta ? py + bh + Math.max(11, 0.26 * s) : py - bh * 0.7;
+      ctx.strokeText(u.ad, X(u.x), ay);
+      ctx.fillText(u.ad, X(u.x), ay);
+    }
+    ctx.fillStyle = 'rgba(43,33,23,.6)';
+    ctx.beginPath();
+    ctx.roundRect(px, py, bw, bh, bh / 2);
+    ctx.fill();
+    ctx.fillStyle = oran > 0.5 ? '#48B34E' : oran > 0.25 ? '#E9B33C' : '#D96C4F';
+    if (oran > 0) {
+      ctx.beginPath();
+      ctx.roundRect(px + 1, py + 1, Math.max((bw - 2) * oran, bh - 2), bh - 2, (bh - 2) / 2);
+      ctx.fill();
+    }
+    ctx.font = `900 ${Math.max(8, Math.round(0.2 * s))}px "Avenir Next",sans-serif`;
+    ctx.fillStyle = '#fff';
+    ctx.fillText(Math.max(Math.ceil(u.hp), 0), X(u.x), py + bh - 1.5);
+  }
+
+  // --- Ana döngü ---
   let onceki = performance.now();
-  renderer.setAnimationLoop(() => {
+  function kare() {
     const simdi = performance.now();
-    // Sabit adımlı ilerletme: nadir frame'lerde (arka plan sekmesi, headless) bile
-    // sim tutarlı kalır; frame başına en fazla 0.5 sn simüle edilir.
+    // Sabit adımlı ilerletme: nadir frame'lerde bile sim tutarlı kalır (≤0.5 sn/frame).
     const dt = Math.min((simdi - onceki) / 1000, 0.5);
     onceki = simdi;
+    if (canvas.width !== Math.round(canvas.clientWidth * dpr)) resize();
     if (battle && !battle.over) {
       let kalan = dt;
       while (kalan > 0) { tick(battle, Math.min(kalan, 0.05)); kalan -= 0.05; }
+      spawnT -= dt;
+      if (kuyruk.length && spawnT <= 0) { dusmanSur(kuyruk.shift()); spawnT = 4.5; }
     }
     if (battle) {
-      for (const [unit, mesh] of meshler) {
-        if (unit.hp <= 0 || !battle.units.includes(unit)) { scene.remove(mesh); meshler.delete(unit); continue; }
-        mesh.position.set(unit.x, 0, unit.z);
-        animIlerlet(mesh, unit, dt, simdi);
-      }
+      olayIsle();
+      olumleriBul();
       if (battle.over && !sonucVerildi) sonuc();
+      if (elixFill) {
+        elixFill.style.width = `${(battle.elixir / ELIXIR.max) * 100}%`;
+        const tam = Math.floor(battle.elixir);
+        if (tam !== sonElixTam) { sonElixTam = tam; elixNum.textContent = tam; pahaliGuncelle(); }
+      }
     }
-    renderer.render(scene, camera);
-  });
+    ciz(dt);
+    requestAnimationFrame(kare);
+  }
+  requestAnimationFrame(kare);
 
-  return { onShow: baslat, autoDeploy: sur };
+  return {
+    onShow: baslat,
+    // Headless smoke testi eski (x,z) düzenini kullanır; oyuncu yarısına kıstırılır.
+    autoDeploy: (charId, x, z) => sur(charId, clamp(x, -5.4, 5.4), z > 0.6 ? clamp(z, 0.9, 9.4) : 4),
+  };
 }

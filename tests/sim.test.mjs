@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle } from '../js/battle/sim.js';
+import {
+  createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle,
+  addTowers, spendElixir, ARENA, ELIXIR, TOWER_STATS,
+} from '../js/battle/sim.js';
 import { LOOT_TABLE } from '../js/balance.js';
 
 const OKCU = { atk: 89, def: 30, spd: 100, range: 6 };
@@ -128,4 +131,117 @@ test('tüfeksiz savaşçı aynı mesafede vuramaz, yürür', () => {
 
 test('ganimet tablosunda tüfek var', () => {
   assert.ok(LOOT_TABLE.includes('tufek'));
+});
+
+// --- Clash Royale modu: kuleler, köprüler, iksir ---
+
+test('kuleler: her tarafta 2 yan + 1 kral, hp = def*10', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  const kuleler = b.units.filter(u => u.tower);
+  assert.equal(kuleler.length, 6);
+  const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
+  assert.equal(kral.hp, TOWER_STATS.king.def * 10);
+  assert.ok(kral.z < 0, 'düşman kral kulesi üst yarıda');
+});
+
+test('düşman kuleleri ölçekle güçlenir, oyuncununkiler sabit', () => {
+  const b = createBattle(6);
+  addTowers(b, 1.4);
+  const dusmanKral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
+  const oyuncuKral = b.units.find(u => u.side === 'player' && u.tower === 'king');
+  assert.equal(dusmanKral.hp, Math.round(TOWER_STATS.king.def * 1.4) * 10);
+  assert.equal(oyuncuKral.hp, TOWER_STATS.king.def * 10);
+});
+
+test('kral kulesi düşünce savaş biter, yıkan kazanır', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
+  kral.hp = 0;
+  tick(b, 0.05);
+  assert.equal(b.over, true);
+  assert.equal(b.winner, 'player');
+});
+
+test('kuleli savaşta birimlerin bitmesi savaşı bitirmez', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  deployUnit(b, 'player', SAVASCI, 0, 5);
+  tick(b, 0.05);
+  assert.equal(b.over, false);
+});
+
+test('nehrin karşısındaki hedefe köprüye doğru yürünür', () => {
+  const b = createBattle(1);
+  const u = deployUnit(b, 'player', SAVASCI, -4.5, 4);
+  deployUnit(b, 'enemy', DINO, -4.5, -4);
+  tick(b, 0.5);
+  assert.ok(u.x > -4.5, `köprüye (x=-2.6) yaklaşmalı, x=${u.x}`);
+  assert.ok(u.z < 4, `nehre yaklaşmalı, z=${u.z}`);
+});
+
+test('aynı taraftaki hedefe düz yürünür (eski davranış)', () => {
+  const b = createBattle(1);
+  const u = deployUnit(b, 'player', SAVASCI, -10, 0);
+  deployUnit(b, 'enemy', DINO, 10, 0);
+  tick(b, 1);
+  assert.ok(Math.abs(u.x - (-7)) < 0.01, `x=${u.x}`);
+});
+
+test('iksir: zamanla dolar (1/1.2sn), max 10, harcanınca düşer', () => {
+  const b = createBattle(1);
+  assert.equal(b.elixir, ELIXIR.start);
+  tick(b, 1.2);
+  assert.ok(Math.abs(b.elixir - (ELIXIR.start + 1)) < 0.01, `elixir=${b.elixir}`);
+  assert.equal(spendElixir(b, 100), false);
+  assert.equal(spendElixir(b, 3), true);
+  assert.ok(Math.abs(b.elixir - (ELIXIR.start + 1 - 3)) < 0.01);
+  for (let t = 0; t < 60; t += 0.5) tick(b, 0.5);
+  assert.equal(b.elixir, ELIXIR.max);
+});
+
+test('top ve mega deprem kuleleri vurmaz', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
+  const asker = deployUnit(b, 'enemy', ZAYIF, 0, -3);
+  assert.equal(fireCannon(b), true);
+  assert.equal(kral.hp, kral.maxHp);
+  assert.ok(asker.hp < asker.maxHp);
+  const kalanKralHp = kral.hp;
+  applyPotion(b, 'mega-deprem-iksiri');
+  assert.equal(kral.hp, kalanKralHp);
+});
+
+test('kule menzili okçudan uzun: okçu kuleyi bedava kesemez', () => {
+  assert.ok(TOWER_STATS.side.range > 6);
+  assert.ok(TOWER_STATS.king.range > 6);
+});
+
+test('kral kulesi uyur: hasar almadan ve yan kule düşmeden ateş etmez', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
+  // Hareketsiz kukla (spd 0): krala dokunmadan menzilinde bekler
+  deployUnit(b, 'player', { atk: 10, def: 100, spd: 0, range: 1.8 }, 0, -6);
+  for (let t = 0; t < 2; t += 0.05) tick(b, 0.05);
+  assert.ok(!b.events.some(ev => ev.from === kral), 'uyuyan kral vurmamalı');
+  kral.hp -= 1; // kral hasar aldı → uyanır
+  b.events.length = 0;
+  for (let t = 0; t < 2; t += 0.05) tick(b, 0.05);
+  assert.ok(b.events.some(ev => ev.from === kral), 'uyanan kral vurmalı');
+});
+
+test('yan kuleler birbirinin şeridine yetişemez (menzil < şerit arası)', () => {
+  assert.ok(ARENA.bridgeX * 2 > TOWER_STATS.side.range,
+    `şeritler arası ${ARENA.bridgeX * 2}, menzil ${TOWER_STATS.side.range}`);
+});
+
+test('vuruş olayları events listesine düşer', () => {
+  const b = createBattle(1);
+  const okcu = deployUnit(b, 'player', OKCU, 0, 0);
+  deployUnit(b, 'enemy', DINO, 1, 0);
+  tick(b, 0.1);
+  assert.ok(b.events.some(ev => ev.from === okcu), 'okçunun vuruşu kayıtlı olmalı');
 });

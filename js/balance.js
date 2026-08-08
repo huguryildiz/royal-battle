@@ -25,6 +25,11 @@ export const SELL_PRICES = {
   odun: 1, kalkan: 15, kilic: 20, yay: 20, tufek: 30,
   'guc-iksiri': 25, 'altin-iksir': 30, 'mega-deprem-iksiri': 50,
 };
+// Savaşta kart sürme maliyeti (iksir). Statlara dokunmaz; Clash Royale tarzı sürüm için ek.
+export const ELIXIR_COST = {
+  savasci: 3, okcu: 3, buyucu: 4, 'buz-ejderhasi': 4,
+  'maden-dinozoru': 5, 'altin-ordu': 6, 'altin-bomba-cicegi': 6, 'kara-ruh': 7,
+};
 // Her 5. seviye boss seviyesi: tek dev birim + normal dalga yarıya iner, altın ×2.
 export function isBossLevel(level) { return level % 5 === 0; }
 
