@@ -43,7 +43,7 @@ export function renderShop(state) {
       </div>`;
   });
   root.innerHTML = `
-    <h2>Asker Alma Yeri <small>Kartlar: Aslan Yıldız'ın çizimleri</small></h2>
+    <h2>Asker Alma Yeri <small>Kartlar: Aslan Yıldız'ın tasarımları</small></h2>
     <div class="cards">${cards.join('')}</div>`;
   root.querySelectorAll('.buy[data-id]').forEach(b =>
     b.addEventListener('pointerdown', () => {
