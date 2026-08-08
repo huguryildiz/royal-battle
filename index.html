@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Royal Battle</title>
+<link rel="stylesheet" href="css/game.css">
+<script type="importmap">
+{"imports": {"three": "./vendor/three.module.js",
+             "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js"}}
+</script>
+</head>
+<body>
+<div id="hud">
+  <span class="logo">Royal Battle</span>
+  <span class="pill" id="hud-gold">🪙 <b id="gold-n">0</b></span>
+  <span class="pill" id="hud-gem">💎 <b id="gem-n">0</b></span>
+</div>
+<main>
+  <section class="screen" id="s-koy"><canvas id="village-canvas"></canvas></section>
+  <section class="screen" id="s-savas"><canvas id="battle-canvas"></canvas><div id="battle-ui"></div></section>
+  <section class="screen" id="s-is"><div id="wood-ui"></div></section>
+  <section class="screen" id="s-envanter"><div id="inv-ui"></div></section>
+  <section class="screen" id="s-dukkan"><div id="shop-ui"></div></section>
+</main>
+<nav id="tabs">
+  <button data-s="s-koy">Köy</button><button data-s="s-savas">Savaş</button>
+  <button data-s="s-is">İş</button><button data-s="s-envanter">Envanter</button>
+  <button data-s="s-dukkan">Dükkan</button>
+</nav>
+<footer id="credits">Grafikler: Kenney.nl — Tasarım: Aslan Yıldız</footer>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
