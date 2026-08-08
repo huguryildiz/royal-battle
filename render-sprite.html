@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<!-- Geçici araç: GLB'yi 3/4 üstten açıyla şeffaf PNG'ye render eder. Repoya girmez. -->
+<meta charset="utf-8">
+<script type="importmap">
+{"imports": {"three": "./vendor/three.module.js",
+             "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js"}}
+</script>
+<canvas id="c" width="1024" height="1024"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const params = new URLSearchParams(location.search);
+const dosya = params.get('glb') ?? 'assets/tripo/kale.glb';
+const yaw = parseFloat(params.get('yaw') ?? '0');      // derece, model dönüşü
+const pitch = parseFloat(params.get('pitch') ?? '32'); // kamera yükseklik açısı
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setClearColor(0x000000, 0);
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(6, 10, 8); scene.add(sun);
+
+new GLTFLoader().load(dosya, g => {
+  const m = g.scene;
+  m.rotation.y = yaw * Math.PI / 180;
+  scene.add(m);
+  // Modeli ortala ve sığdır
+  const box = new THREE.Box3().setFromObject(m);
+  const merkez = box.getCenter(new THREE.Vector3());
+  const boyut = box.getSize(new THREE.Vector3());
+  const r = Math.max(boyut.x, boyut.y, boyut.z);
+  const cam = new THREE.PerspectiveCamera(30, 1, 0.01, r * 20);
+  const uzak = r * parseFloat(params.get('d') ?? '2.1');
+  const rad = pitch * Math.PI / 180;
+  cam.position.set(merkez.x, merkez.y + Math.sin(rad) * uzak, merkez.z + Math.cos(rad) * uzak);
+  cam.lookAt(merkez);
+  renderer.render(scene, cam);
+  window.spriteData = canvas.toDataURL('image/png');
+  document.title = 'HAZIR';
+}, undefined, e => { document.title = 'HATA: ' + e; });
+</script>

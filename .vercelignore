@@ -5,3 +5,5 @@ serve.sh
 shot.sh
 glbgrid.html
 tests
+render-sprite.html
+assets/tripo/*.glb

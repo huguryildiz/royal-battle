@@ -1,3 +1,6 @@
 .DS_Store
 .env
 .vercel
+
+# Tripo kaynak modelleri: büyük (~30MB), sadece sprite render için gerekli — yerelde kalsın
+assets/tripo/*.glb

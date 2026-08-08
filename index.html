@@ -12,6 +12,19 @@
 </script>
 </head>
 <body>
+<div id="intro">
+  <video autoplay muted loop playsinline src="assets/hero-video.mp4" aria-hidden="true"></video>
+  <div class="intro-inner">
+    <div class="intro-crown">👑</div>
+    <h1 class="intro-logo">Royal<br>Battle</h1>
+    <p class="intro-tag">Aslan Yıldız'ın oyunu</p>
+    <div class="intro-panel panel">
+      <p class="intro-pill"><span class="dot"></span>Kayıt hazır — 🏰 Seviye <b id="intro-seviye">1</b> · 🪙 <b id="intro-altin">0</b></p>
+      <button class="bigbtn intro-oyna" id="oyna-btn" type="button">⚔️ Oyna</button>
+      <p class="intro-tip">İpucu: Köyde binalara dokunarak gezebilirsin.</p>
+    </div>
+  </div>
+</div>
 <div id="hud">
   <span class="logo">Royal Battle</span>
   <span class="pill" id="hud-gold">🪙 <b id="gold-n">0</b></span>
@@ -19,7 +32,7 @@
   <button class="pill" id="ses-btn" type="button" aria-label="Sesi aç veya kapat">🔊</button>
 </div>
 <main>
-  <section class="screen" id="s-koy"><canvas id="village-canvas"></canvas></section>
+  <section class="screen" id="s-koy"><div id="village-map"></div></section>
   <section class="screen" id="s-savas"><canvas id="battle-canvas"></canvas><div id="battle-ui"></div></section>
   <section class="screen" id="s-is"><div id="wood-ui"></div></section>
   <section class="screen" id="s-envanter"><div id="inv-ui"></div></section>

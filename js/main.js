@@ -2,7 +2,7 @@
 import { initTabs, show, register } from './screens.js';
 import { load } from './state.js';
 import { initHud } from './ui/hud.js';
-import { initVillage } from './village/scene.js';
+import { initVillage } from './village/map.js';
 import { initWoodcutting } from './ui/woodcutting.js';
 import { initMining } from './ui/mining.js';
 import { renderInventory } from './ui/inventory.js';
@@ -29,16 +29,21 @@ register('s-dukkan', { onShow: () => renderShop(gameState) });
 const battle = initBattle(gameState);
 register('s-savas', battle);
 
-const village = await initVillage({
-  canvas: document.getElementById('village-canvas'),
-  onBuildingTap: hedef => {
-    const ekran = { is: 's-is', asker: 's-dukkan', savas: 's-savas', envanter: 's-envanter', maden: 's-maden' }[hedef];
-    if (ekran) show(ekran);
-  },
+initVillage({
+  root: document.getElementById('village-map'),
+  onBuildingTap: hedef => show('s-' + hedef),
 });
-register('s-koy', { onShow: village.resize });
 // Screenshot/dev kolaylığı: #is gibi bir hash ile doğrudan ekran açılabilir.
 show(location.hash ? 's-' + location.hash.slice(1) : 's-koy');
+// Karşılama ekranı: OYNA → oyuna gir. Hash/autobattle ile gelindiyse hiç gösterme.
+const intro = document.getElementById('intro');
+if (location.hash || new URLSearchParams(location.search).get('autobattle')) {
+  intro.remove();
+} else {
+  document.getElementById('intro-seviye').textContent = gameState.battleLevel;
+  document.getElementById('intro-altin').textContent = gameState.gold;
+  document.getElementById('oyna-btn').addEventListener('click', () => intro.remove());
+}
 // Headless smoke testi: ?autobattle=1 → savaş ekranını aç, savaşçıyı otomatik sür.
 if (new URLSearchParams(location.search).get('autobattle')) {
   show('s-savas');
