@@ -1,6 +1,6 @@
 # Royal Battle — Oyun Tasarım Dokümanı
 
-*Tasarım: baş tasarımcımızın "Royal battle.pdf" çizimleri (14 sayfa) + sesli anlatımı.
+*Tasarım: Aslan Yıldız'ın "Royal battle.pdf" çizimleri (14 sayfa) + sesli anlatımı.
 Bu doküman oyunun "prompt"udur: oyun bu dokümana göre yapılır, her madde çizimlere dayanır.*
 
 ## 1. Oyun Kimliği
@@ -41,7 +41,7 @@ Binaya dokununca ilgili ekran açılır:
 Çizimdeki gibi ızgara düzeni: eşyalar adetleriyle görünür (x30, x100 gibi), **dolu yer / boş yer** sayısı yazar. Savaş ganimetleri buraya düşer.
 
 ### 2.5 Karakter Dükkanı (Asker Alma Yeri)
-8 karakter kart halinde dizilir; kartlarda baş tasarımcımızın çizimlerinin renklendirilmiş halleri ve statları. Normal karakterler **altınla**, Ultra Özel karakterler **yeşil taşla** alınır. Kara Ruh en pahalı yeşil taş karakteridir.
+8 karakter kart halinde dizilir; kartlarda Aslan'ın çizimlerinin renklendirilmiş halleri ve statları. Normal karakterler **altınla**, Ultra Özel karakterler **yeşil taşla** alınır. Kara Ruh en pahalı yeşil taş karakteridir.
 
 ## 3. Karakterler
 
@@ -58,7 +58,7 @@ Statlar çizimlerden birebir alınmıştır, değiştirilemez (tasarımcının k
 | Altın Bomba Çiçeği | Ultra Özel | 100 | 100 | 100 | Yeşil taş |
 | Kara Ruh | INVISIBLE | 101 | 101 | 101 | Yeşil taş (en pahalı) |
 
-Karakter dengesi baş tasarımcımızın kurduğu gibi korunur: Okçu hızlı-kırılgan, Maden Dinozoru güçlü-yavaş, Savaşçı savunmacı. Kara Ruh "101" ile tavanın bir tık üstünde — oyunun en özel karakteri; savaşta yarı saydam (görünmezlik hissi) görünür.
+Karakter dengesi Aslan'ın kurduğu gibi korunur: Okçu hızlı-kırılgan, Maden Dinozoru güçlü-yavaş, Savaşçı savunmacı. Kara Ruh "101" ile tavanın bir tık üstünde — oyunun en özel karakteri; savaşta yarı saydam (görünmezlik hissi) görünür.
 
 ## 4. Ekonomi
 
@@ -70,13 +70,13 @@ Karakter dengesi baş tasarımcımızın kurduğu gibi korunur: Okçu hızlı-k�
 
 | Ne | Kaynak | Not |
 |---|---|---|
-| Köy binaları, kasaba | **Kenney Retro Fantasy Kit** (3D, CC0) | Minecraft havasında retro stil — baş tasarımcımızın çizim estetiğiyle uyumlu |
+| Köy binaları, kasaba | **Kenney Retro Fantasy Kit** (3D, CC0) | Minecraft havasında retro stil — Aslan'ın çizim estetiğiyle uyumlu |
 | Savaşan karakterler | **Kenney Blocky Characters** (3D animasyonlu, CC0) | Her karaktere ayırt edici renk/silah; yürüme + saldırı animasyonları |
-| Karakter kartları | **baş tasarımcımızın çizimlerinden renklendirilmiş versiyonlar** | Dükkan, envanter ve savaş seçiminde dev boy; çizgisine sadık üretilir, onayı kendisi verir |
+| Karakter kartları | **Aslan'ın çizimlerinden renklendirilmiş versiyonlar** | Dükkan, envanter ve savaş seçiminde dev boy; çizgisine sadık üretilir, onayı kendisi verir |
 | Butonlar, panel, ikonlar | **Kenney UI Pack + Game Icons** (CC0) | Altın/taş ikonları, Savaş/Envanter tuşları |
-| Eşya görselleri | baş tasarımcımızın eşya çizimlerinden (kalkan, kılıç, tüfek, mini gun, iksirler) | 2. sürümde savaşta kullanım eklenince öne çıkar |
+| Eşya görselleri | Aslan'ın eşya çizimlerinden (kalkan, kılıç, tüfek, mini gun, iksirler) | 2. sürümde savaşta kullanım eklenince öne çıkar |
 
-Açılış ekranına küçük teşekkür: "Grafikler: Kenney.nl — Tasarım: (oğlunuzun adı)".
+Açılış ekranına küçük teşekkür: "Grafikler: Kenney.nl — Tasarım: Aslan Yıldız".
 
 ## 6. Kontroller
 
@@ -98,4 +98,4 @@ Tamamen dokunmatik (çizimdeki kontrol sayfalarına sadık):
 
 ## 8. Başarı Ölçütü
 
-Oyun iPad Safari'de tam ekran açılır; baş tasarımcımız yardım almadan odun keser, altın biriktirir, karakter satın alır ve bir savaşı kazanıp 25 altınla ganimetini envanterde görür. Son söz her zaman tasarımcınındır: o "şurası farklı olsun" derse doküman güncellenir.
+Oyun iPad Safari'de tam ekran açılır; Aslan yardım almadan odun keser, altın biriktirir, karakter satın alır ve bir savaşı kazanıp 25 altınla ganimetini envanterde görür. Son söz her zaman tasarımcınındır: o "şurası farklı olsun" derse doküman güncellenir.
