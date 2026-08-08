@@ -3,10 +3,12 @@ import { initTabs, show, register } from './screens.js';
 import { load } from './state.js';
 import { initHud } from './ui/hud.js';
 import { initVillage } from './village/scene.js';
+import { initWoodcutting } from './ui/woodcutting.js';
 
 export const gameState = load();
 initTabs();
 initHud(gameState);
+register('s-is', initWoodcutting(gameState));
 
 const village = await initVillage({
   canvas: document.getElementById('village-canvas'),
@@ -16,4 +18,5 @@ const village = await initVillage({
   },
 });
 register('s-koy', { onShow: village.resize });
-show('s-koy');
+// Screenshot/dev kolaylığı: #is gibi bir hash ile doğrudan ekran açılabilir.
+show(location.hash ? 's-' + location.hash.slice(1) : 's-koy');
