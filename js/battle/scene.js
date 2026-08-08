@@ -8,26 +8,7 @@ import { show } from '../screens.js';
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
 
-// Geçici gövdeler — Task 12'de characters/builder.js gerçekleriyle değiştirecek.
-const TEMP_COLORS = {
-  savasci: 0x8a3b2e, okcu: 0x3e7c4f, buyucu: 0x6b3fa0, 'buz-ejderhasi': 0x9bd7e8,
-  'maden-dinozoru': 0x6e7d5a, 'altin-ordu': 0xe9b33c, 'altin-bomba-cicegi': 0x74b35c,
-  'kara-ruh': 0x3a2a5e, dusman: 0x5a5f66,
-};
-function buildTempBody(charId) {
-  const renk = TEMP_COLORS[charId] ?? TEMP_COLORS.dusman;
-  const g = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color: renk });
-  const govde = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1, 0.45), mat);
-  govde.position.y = 0.9;
-  const kafa = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.45), mat);
-  kafa.position.y = 1.65;
-  g.add(govde, kafa);
-  if (charId === 'kara-ruh') {
-    mat.transparent = true; mat.opacity = 0.55;
-  }
-  return g;
-}
+import { buildCharacter } from '../characters/builder.js';
 
 export function initBattle(state) {
   const canvas = document.getElementById('battle-canvas');
@@ -60,10 +41,15 @@ export function initBattle(state) {
   addEventListener('resize', resize);
 
   function unitEkle(unit, charId) {
-    const mesh = buildTempBody(charId);
-    mesh.position.set(unit.x, 0, unit.z);
-    scene.add(mesh);
-    meshler.set(unit, mesh);
+    const savas = battle;
+    buildCharacter(charId).then(mesh => {
+      // Model yüklenene dek birim ölmüş ya da savaş sıfırlanmış olabilir
+      if (battle !== savas || !battle.units.includes(unit)) return;
+      mesh.position.set(unit.x, 0, unit.z);
+      if (unit.side === 'enemy') mesh.rotation.y = Math.PI;
+      scene.add(mesh);
+      meshler.set(unit, mesh);
+    });
   }
 
   function elCiz() {
