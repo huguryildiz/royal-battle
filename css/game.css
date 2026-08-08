@@ -135,6 +135,7 @@ h2 small{display:block; font-size:.78rem; font-weight:600; letter-spacing:0; tex
 }
 .actbtn[data-top]{background:linear-gradient(var(--danger),#A94A32); color:#fff; box-shadow:0 3px 0 #7C3320}
 .actbtn:disabled{opacity:.4; box-shadow:none; cursor:default}
+.actbtn.selected{outline:3px solid var(--gold); outline-offset:2px}
 .bigbtn{
   appearance:none; border:none; cursor:pointer; font:inherit; font-weight:900; text-transform:uppercase; letter-spacing:.08em;
   background:linear-gradient(var(--gold),var(--gold-dark)); color:#3A2A08; font-size:1.05rem;

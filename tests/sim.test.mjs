@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon } from '../js/battle/sim.js';
+import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle } from '../js/battle/sim.js';
 import { LOOT_TABLE } from '../js/balance.js';
 
 const OKCU = { atk: 89, def: 30, spd: 100, range: 6 };
 const DINO = { atk: 100, def: 100, spd: 21, range: 1.8 };
 const ZAYIF = { atk: 10, def: 1, spd: 50, range: 1.8 };
+const SAVASCI = { atk: 50, def: 94, spd: 75, range: 1.8 };
 
 test('hp = def*10', () => {
   const b = createBattle(1);
@@ -91,4 +92,40 @@ test('battleRewards: rng=0.05 → taş düşer (5-15), rng=0.9 → taş 0; gold 
   assert.ok(LOOT_TABLE.includes(r.loot));
   const r2 = battleRewards(() => 0.9);
   assert.equal(r2.gems, 0); assert.equal(r2.gold, 25);
+});
+
+test('tüfek: menzil 8, atk +10; ikinci kez takılmaz; düşmana takılmaz', () => {
+  const b = createBattle(1);
+  const oyuncu = deployUnit(b, 'player', SAVASCI, 0, 0);
+  assert.equal(equipRifle(b, oyuncu), true);
+  assert.equal(oyuncu.range, 8);
+  assert.equal(oyuncu.atk, 60);
+  assert.equal(equipRifle(b, oyuncu), false); // tek kullanımlık
+  assert.equal(oyuncu.atk, 60);
+  const dusman = deployUnit(b, 'enemy', SAVASCI, 5, 0);
+  assert.equal(equipRifle(b, dusman), false);
+  assert.equal(dusman.range, 1.8);
+});
+
+test('tüfekli savaşçı 7 birim uzaktan vurur, yaklaşmaz', () => {
+  const b = createBattle(1);
+  const oyuncu = deployUnit(b, 'player', SAVASCI, 0, 0);
+  equipRifle(b, oyuncu);
+  const dusman = deployUnit(b, 'enemy', DINO, 7, 0);
+  tick(b, 1);
+  assert.equal(oyuncu.x, 0, 'menzilde olduğu için yürümemeli');
+  assert.ok(dusman.hp < dusman.maxHp, `düşman hasarı ${dusman.maxHp - dusman.hp}`);
+});
+
+test('tüfeksiz savaşçı aynı mesafede vuramaz, yürür', () => {
+  const b = createBattle(1);
+  const oyuncu = deployUnit(b, 'player', SAVASCI, 0, 0);
+  const dusman = deployUnit(b, 'enemy', DINO, 7, 0);
+  tick(b, 1);
+  assert.ok(oyuncu.x > 0, 'yaklaşmalı');
+  assert.equal(dusman.hp, dusman.maxHp);
+});
+
+test('ganimet tablosunda tüfek var', () => {
+  assert.ok(LOOT_TABLE.includes('tufek'));
 });

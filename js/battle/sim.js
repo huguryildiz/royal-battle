@@ -1,5 +1,5 @@
 // js/battle/sim.js — SAF savaş simülasyonu. DOM/Three.js import ETMEZ.
-import { BATTLE_WIN_GOLD, GEM_DROP, LOOT_TABLE } from '../balance.js';
+import { BATTLE_WIN_GOLD, GEM_DROP, LOOT_TABLE, RIFLE } from '../balance.js';
 
 export function createBattle(level) {
   return {
@@ -65,6 +65,15 @@ export function applyPotion(battle, tip) {
   } else if (tip === 'mega-deprem-iksiri') {
     for (const u of battle.units) if (u.side === 'enemy') u.hp -= 150;
   }
+}
+
+// Tüfek: tek kullanımlık eşya, bir oyuncu birimine takılır — menzil 8, atk +10.
+export function equipRifle(battle, unit) {
+  if (!unit || unit.side !== 'player' || unit.rifle) return false;
+  unit.rifle = true;
+  unit.range = RIFLE.range;
+  unit.atk += RIFLE.atk;
+  return true;
 }
 
 // Top: savaş başına 1 atış, en yüksek canlı düşmana 300 hasar.

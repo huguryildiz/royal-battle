@@ -1,6 +1,6 @@
 // js/battle/scene.js — 3D savaş arenası: kart seç → sol yarıya sür, otomatik dövüş.
 import * as THREE from 'three';
-import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon } from './sim.js';
+import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle } from './sim.js';
 import { CHARACTERS, enemyWave, ITEM_NAMES } from '../balance.js';
 import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
@@ -80,6 +80,7 @@ export function initBattle(state) {
   let battle = null;
   let secili = null;          // seçili karakter id
   let surulenler = new Set(); // bu savaşta sürülen karakterler
+  let tufekBekliyor = false;  // sürülecek sonraki birime tüfek takılsın mı
   const meshler = new Map();  // unit → mesh
   let sonucVerildi = false;
 
@@ -117,9 +118,15 @@ export function initBattle(state) {
       .map(([id, ikon]) => `<button class="actbtn" data-iksir="${id}">${ikon} ${ITEM_NAMES[id]} ×${state.inventory[id]}</button>`)
       .join('');
     const topBtn = `<button class="actbtn" data-top="1" ${battle?.cannonUsed ? 'disabled' : ''}>💣 Top${battle?.cannonUsed ? ' (kullanıldı)' : ''}</button>`;
+    const tufekBtn = state.inventory.tufek > 0
+      ? `<button class="actbtn${tufekBekliyor ? ' selected' : ''}" data-tufek="1">🔫 ${ITEM_NAMES.tufek} ×${state.inventory.tufek}</button>`
+      : '';
+    const ipucu = tufekBekliyor
+      ? '🔫 Tüfek hazır — süreceğin sonraki birim uzaktan vuracak'
+      : `Karta dokun, sonra sol yarıya dokunup sür — Seviye ${state.battleLevel}`;
     ui.innerHTML = `<div class="handrow">${kartlar}</div>
-      <div class="actrow">${topBtn}${iksirBtnleri}</div>
-      <p class="map-hint" style="color:#F5EBD3;margin:.2rem 0">Karta dokun, sonra sol yarıya dokunup sür — Seviye ${state.battleLevel}</p>`;
+      <div class="actrow">${topBtn}${tufekBtn}${iksirBtnleri}</div>
+      <p class="map-hint" style="color:#F5EBD3;margin:.2rem 0">${ipucu}</p>`;
     ui.querySelectorAll('.minicard:not(.used)').forEach(k =>
       k.addEventListener('pointerdown', () => { secili = k.dataset.id; elCiz(); }));
     ui.querySelectorAll('[data-iksir]').forEach(b =>
@@ -133,6 +140,11 @@ export function initBattle(state) {
         refreshHud(state);
         elCiz();
       }));
+    ui.querySelector('[data-tufek]')?.addEventListener('pointerdown', () => {
+      if (!battle || battle.over || !(state.inventory.tufek > 0)) return;
+      tufekBekliyor = !tufekBekliyor;
+      elCiz();
+    });
     ui.querySelector('[data-top]')?.addEventListener('pointerdown', () => {
       if (!battle || battle.over) return;
       if (fireCannon(battle)) { sfx.cannon(); elCiz(); }
@@ -145,7 +157,7 @@ export function initBattle(state) {
     meshler.clear();
     ekran.querySelector('.victory')?.remove();
     battle = createBattle(state.battleLevel);
-    secili = null; surulenler = new Set(); sonucVerildi = false;
+    secili = null; surulenler = new Set(); sonucVerildi = false; tufekBekliyor = false;
     for (const [i, stats] of enemyWave(state.battleLevel).entries()) {
       const u = deployUnit(battle, 'enemy', stats, 5 + (i % 2) * 2.5, -4 + Math.floor(i / 2) * 2.5);
       unitEkle(u, 'dusman');
@@ -158,6 +170,12 @@ export function initBattle(state) {
     if (!battle || battle.over || surulenler.has(charId)) return;
     const c = byId[charId];
     const u = deployUnit(battle, 'player', { atk: c.atk, def: c.def, spd: c.spd, range: c.range }, x, z);
+    if (tufekBekliyor && state.inventory.tufek > 0 && equipRifle(battle, u)) {
+      state.inventory.tufek -= 1;
+      if (state.inventory.tufek === 0) delete state.inventory.tufek;
+      tufekBekliyor = false;
+      refreshHud(state);
+    }
     unitEkle(u, charId);
     surulenler.add(charId);
     secili = null;

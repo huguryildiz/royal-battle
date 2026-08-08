@@ -12,7 +12,9 @@ export const CHARACTERS = [
 export const WOOD_GOLD = 2;
 export const BATTLE_WIN_GOLD = 25;
 export const GEM_DROP = { chance: 0.2, min: 5, max: 15 };
-export const LOOT_TABLE = ['kalkan', 'kilic', 'yay', 'guc-iksiri', 'altin-iksir'];
+export const LOOT_TABLE = ['kalkan', 'kilic', 'yay', 'tufek', 'guc-iksiri', 'altin-iksir'];
+// Tüfek: tek kullanımlık, taktığı birimi uzun menzilli yapar.
+export const RIFLE = { range: 8, atk: 10 };
 export const ITEM_NAMES = {
   odun: 'Odun', kalkan: 'Kalkan', kilic: 'Kılıç', yay: 'Yay', tufek: 'Tüfek',
   'guc-iksiri': 'Güç İksiri', 'altin-iksir': 'Altın İksir', 'mega-deprem-iksiri': 'Mega Deprem İksiri',
