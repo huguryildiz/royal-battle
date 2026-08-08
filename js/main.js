@@ -4,6 +4,7 @@ import { load } from './state.js';
 import { initHud } from './ui/hud.js';
 import { initVillage } from './village/scene.js';
 import { initWoodcutting } from './ui/woodcutting.js';
+import { initMining } from './ui/mining.js';
 import { renderInventory } from './ui/inventory.js';
 import { renderShop } from './ui/shop.js';
 import { initBattle } from './battle/scene.js';
@@ -22,6 +23,7 @@ export const gameState = load();
 initTabs();
 initHud(gameState);
 register('s-is', initWoodcutting(gameState));
+register('s-maden', initMining(gameState));
 register('s-envanter', { onShow: () => renderInventory(gameState) });
 register('s-dukkan', { onShow: () => renderShop(gameState) });
 const battle = initBattle(gameState);
@@ -30,7 +32,7 @@ register('s-savas', battle);
 const village = await initVillage({
   canvas: document.getElementById('village-canvas'),
   onBuildingTap: hedef => {
-    const ekran = { is: 's-is', asker: 's-dukkan', savas: 's-savas', envanter: 's-envanter' }[hedef];
+    const ekran = { is: 's-is', asker: 's-dukkan', savas: 's-savas', envanter: 's-envanter', maden: 's-maden' }[hedef];
     if (ekran) show(ekran);
   },
 });

@@ -97,6 +97,30 @@ async function buildWoodcamp() {
   return g;
 }
 
+// Maden: taş duvarla çevrili ocak ağzı, içine inen merdiven, çevresinde cevher yığınları.
+async function buildMine() {
+  const g = new THREE.Group();
+  const ocak = await compose([
+    // ocak ağzını çevreleyen taş duvar (at nalı), önü merdivenle açık
+    ['wall-low', -1, 0, -1], ['wall-low', 0, 0, -1], ['wall-low', 1, 0, -1],
+    ['wall-low', -1.5, 0, -0.5, ], ['wall-low', 1.5, 0, -0.5],
+    // ocağa inen taş merdiven
+    ['stairs-stone', 0, 0, 0.2],
+    // çıkarılan cevher yığınları
+    ['bricks', -1.4, 0, 0.9], ['bricks', 1.4, 0, 0.9], ['bricks', 0.9, 0, -1.6],
+  ], 1.9);
+  ocak.children[3].rotation.y = Math.PI / 2;
+  ocak.children[4].rotation.y = Math.PI / 2;
+  const [sandik, fici, ficilar] = await Promise.all([
+    loadGLB('detail-crate'), loadGLB('detail-barrel'), loadGLB('barrels'),
+  ]);
+  sandik.scale.setScalar(2); sandik.position.set(3.8, 0, 2.4);
+  fici.scale.setScalar(2); fici.position.set(2.8, 0, 3.6);
+  ficilar.scale.setScalar(1.8); ficilar.position.set(-3.6, 0, 2.8);
+  g.add(ocak, sandik, fici, ficilar);
+  return g;
+}
+
 async function buildMarket() {
   const g = new THREE.Group();
   const [h1, h2, h3] = await Promise.all([buildHouse(true), buildHouse(false), buildHouse(true)]);
@@ -138,6 +162,7 @@ export async function initVillage({ canvas, onBuildingTap }) {
     [() => buildTree(2), -10, -10, 0, null],
     [() => buildTree(1.8), -15, -6, 0, null],
     [buildWoodcamp, 10, -7, 0, 'is'],
+    [buildMine, -12, 8, 0, 'maden'],
     [buildMarket, 10, 6, Math.PI, 'envanter'],
     [buildBarracks, 0, 7, 0, 'asker'],
     [buildGate, 16, 0, -Math.PI / 2, 'savas'],

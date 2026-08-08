@@ -10,6 +10,8 @@ export const CHARACTERS = [
   { id: 'kara-ruh', name: 'Kara Ruh', tier: 'invisible', atk: 101, def: 101, spd: 101, range: 1.8, cost: { gems: 2600 }, card: 'assets/cards/kara-ruh.jpg' },
 ];
 export const WOOD_GOLD = 2;
+// Maden: 8 kayalık tur, her kaya 3 dokunuşta kırılır; %35 ihtimalle 1–3 💎, yoksa 1 🪙.
+export const MINE = { rocks: 8, tapsPerRock: 3, chance: 0.35, min: 1, max: 3, gold: 1 };
 export const BATTLE_WIN_GOLD = 25;
 export const GEM_DROP = { chance: 0.2, min: 5, max: 15 };
 export const LOOT_TABLE = ['kalkan', 'kilic', 'yay', 'tufek', 'guc-iksiri', 'altin-iksir'];

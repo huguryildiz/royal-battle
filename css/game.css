@@ -40,8 +40,8 @@ main{flex:1; position:relative; min-height:0}
 .screen{display:none; position:absolute; inset:0}
 .screen.active{display:block}
 #s-koy.active,#s-savas.active{overflow:hidden}
-#s-is.active,#s-envanter.active,#s-dukkan.active{overflow-y:auto; -webkit-overflow-scrolling:touch}
-#s-is,#s-envanter,#s-dukkan{padding:.9rem}
+#s-is.active,#s-envanter.active,#s-dukkan.active,#s-maden.active{overflow-y:auto; -webkit-overflow-scrolling:touch}
+#s-is,#s-envanter,#s-dukkan,#s-maden{padding:.9rem}
 #village-canvas,#battle-canvas{width:100%; height:100%; display:block}
 #s-savas{display:none}
 #s-savas.active{display:flex; flex-direction:column}
@@ -70,6 +70,26 @@ h2 small{display:block; font-size:.78rem; font-weight:600; letter-spacing:0; tex
 .log.cut::before{opacity:.25}
 .log .chip{position:absolute; top:-6px; right:-4px; background:var(--gold); color:#3A2A08; font-weight:900; font-size:.68rem; border-radius:.6rem; padding:.1rem .4rem; opacity:0; transform:translateY(6px); transition:.25s}
 .log.cut .chip{opacity:1; transform:translateY(0)}
+
+/* ---- maden ---- */
+.mine{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:.7rem}
+.rock{
+  appearance:none; border:none; cursor:pointer; font:inherit;
+  background:linear-gradient(#8E96A0,#5F6873); border-radius:.8rem; height:86px;
+  box-shadow:0 4px 0 #3E454E; position:relative; display:flex; align-items:center; justify-content:center;
+}
+.rock::before{content:""; width:46px; height:40px; background:#AEB6BD;
+  clip-path:polygon(18% 100%,0 55%,22% 8%,62% 0,100% 34%,86% 92%); border-radius:.2rem}
+.rock::after{content:""; position:absolute; width:14px; height:14px; border-radius:50%;
+  background:radial-gradient(circle,#8FE3FF 30%,#39A9D4 70%); opacity:0; transition:.2s}
+.rock.hit1::before{transform:rotate(-4deg) scale(.94)}
+.rock.hit2::before{transform:rotate(5deg) scale(.86); filter:brightness(.9)}
+.rock.hit2::after{opacity:.6}
+.rock.broken{background:var(--grass2); box-shadow:none; cursor:default}
+.rock.broken::before{opacity:.25; transform:scale(.7)}
+.rock.broken::after{opacity:0}
+.rock .chip{position:absolute; top:-6px; right:-4px; background:var(--gold); color:#3A2A08; font-weight:900; font-size:.68rem; border-radius:.6rem; padding:.1rem .4rem; opacity:0; transform:translateY(6px); transition:.25s}
+.rock.broken .chip{opacity:1; transform:translateY(0)}
 
 /* ---- envanter ---- */
 .invmeta{display:flex; gap:.8rem; font-size:.8rem; font-weight:700; color:var(--ink-soft); margin-bottom:.6rem}
@@ -160,7 +180,7 @@ h2 small{display:block; font-size:.78rem; font-weight:600; letter-spacing:0; tex
   border-radius:.7rem; padding:.7rem .2rem; min-height:48px;
 }
 #tabs button.active{background:var(--gold); color:#3A2A08}
-#tabs button:focus-visible,.bigbtn:focus-visible,.log:focus-visible,.buy:focus-visible{outline:3px solid var(--gem); outline-offset:2px}
+#tabs button:focus-visible,.bigbtn:focus-visible,.log:focus-visible,.rock:focus-visible,.buy:focus-visible{outline:3px solid var(--gem); outline-offset:2px}
 
 #credits{
   flex:none; font-size:.68rem; color:#B7A88C; background:var(--ink); text-align:center;
