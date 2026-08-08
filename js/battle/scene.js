@@ -15,6 +15,51 @@ const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
 
 import { buildCharacter } from '../characters/builder.js';
 
+// --- Animasyon: Kenney klipleri (insansılar) / sinüs sallanması (kutu-inşa) ---
+const KLIP = { idle: 'idle', walk: 'walk', vurus: 'attack-melee-right' };
+
+function animKur(mesh) {
+  const klipler = mesh.userData.klipler;
+  if (!klipler?.length) return null;
+  const mixer = new THREE.AnimationMixer(mesh);
+  const kayit = { mixer, aktif: null, cd: 0, vurusKalan: 0 };
+  for (const [ad, klipAdi] of Object.entries(KLIP)) {
+    const klip = THREE.AnimationClip.findByName(klipler, klipAdi);
+    if (klip) kayit[ad] = mixer.clipAction(klip);
+  }
+  kayit.vurus?.setLoop(THREE.LoopOnce, 1);
+  return kayit;
+}
+
+function animGec(kayit, ad, sure = 0.25) {
+  const yeni = kayit[ad];
+  if (!yeni || kayit.aktif === yeni) return;
+  yeni.reset().fadeIn(sure).play();
+  kayit.aktif?.fadeOut(sure);
+  kayit.aktif = yeni;
+}
+
+// Menzil dışında yürüme, menzilde bekleme; cooldown sıfırlandığı an tek seferlik vuruş.
+function animIlerlet(mesh, unit, dt, simdi) {
+  const kayit = mesh.userData.anim;
+  if (!kayit) {
+    if (mesh.userData.sallan) mesh.rotation.z = Math.sin(simdi / 260 + mesh.id) * 0.07;
+    return;
+  }
+  kayit.mixer.update(dt);
+  const hedef = unit.target;
+  const menzilde = hedef && hedef.hp > 0 && Math.hypot(hedef.x - unit.x, hedef.z - unit.z) <= unit.range;
+  if (menzilde && kayit.vurus && unit.cooldown > kayit.cd + 1e-6) {
+    kayit.vurus.reset().fadeIn(0.08).play();
+    if (kayit.aktif && kayit.aktif !== kayit.vurus) kayit.aktif.fadeOut(0.08);
+    kayit.aktif = kayit.vurus;
+    kayit.vurusKalan = kayit.vurus.getClip().duration;
+  }
+  kayit.cd = unit.cooldown;
+  if (kayit.vurusKalan > 0) { kayit.vurusKalan -= dt; return; }
+  animGec(kayit, hedef && !menzilde ? 'walk' : 'idle');
+}
+
 export function initBattle(state) {
   const canvas = document.getElementById('battle-canvas');
   const ui = document.getElementById('battle-ui');
@@ -51,7 +96,9 @@ export function initBattle(state) {
       // Model yüklenene dek birim ölmüş ya da savaş sıfırlanmış olabilir
       if (battle !== savas || !battle.units.includes(unit)) return;
       mesh.position.set(unit.x, 0, unit.z);
-      if (unit.side === 'enemy') mesh.rotation.y = Math.PI;
+      // Yürüyüş animasyonu yönlü: rakibe 45° dönük dur ki hem yüz hem adım görünsün.
+      mesh.rotation.y = unit.side === 'enemy' ? -Math.PI / 4 : Math.PI / 4;
+      mesh.userData.anim = animKur(mesh);
       scene.add(mesh);
       meshler.set(unit, mesh);
     });
@@ -159,13 +206,17 @@ export function initBattle(state) {
     const simdi = performance.now();
     // Sabit adımlı ilerletme: nadir frame'lerde (arka plan sekmesi, headless) bile
     // sim tutarlı kalır; frame başına en fazla 0.5 sn simüle edilir.
-    let kalan = Math.min((simdi - onceki) / 1000, 0.5);
+    const dt = Math.min((simdi - onceki) / 1000, 0.5);
     onceki = simdi;
     if (battle && !battle.over) {
+      let kalan = dt;
       while (kalan > 0) { tick(battle, Math.min(kalan, 0.05)); kalan -= 0.05; }
+    }
+    if (battle) {
       for (const [unit, mesh] of meshler) {
-        if (unit.hp <= 0 || !battle.units.includes(unit)) { scene.remove(mesh); meshler.delete(unit); }
-        else mesh.position.set(unit.x, 0, unit.z);
+        if (unit.hp <= 0 || !battle.units.includes(unit)) { scene.remove(mesh); meshler.delete(unit); continue; }
+        mesh.position.set(unit.x, 0, unit.z);
+        animIlerlet(mesh, unit, dt, simdi);
       }
       if (battle.over && !sonucVerildi) sonuc();
     }

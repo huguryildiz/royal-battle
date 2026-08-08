@@ -6,9 +6,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
 let basePromise = null;
+// gltf'in tamamı lazım: scene + 27 animasyon klibi (idle/walk/attack-melee-right...).
 function loadBase() {
   basePromise ??= new Promise((res, rej) =>
-    loader.load('assets/kenney/blocky-characters/character-a.glb', g => res(g.scene), undefined, rej));
+    loader.load('assets/kenney/blocky-characters/character-a.glb', res, undefined, rej));
   return basePromise;
 }
 
@@ -33,12 +34,15 @@ function kutuInsansi({ govde, kol, bacak, kafaRenk }) {
 
 // Blocky iskeleti: parçaları boya (kafa dokusu = yüz, korunur), 1.8 birime ölçekle.
 async function humanoid({ govde, kol, bacak, kafaRenk = null, opacity = null }) {
-  let base;
+  let base, klipler;
   try {
-    base = (await loadBase()).clone();
+    const gltf = await loadBase();
+    base = gltf.scene.clone(true);
+    klipler = gltf.animations;
   } catch {
     const g = new THREE.Group();
     g.add(kutuInsansi({ govde, kol, bacak, kafaRenk }));
+    g.userData.sallan = true;
     return g;
   }
   base.traverse(o => {
@@ -59,6 +63,7 @@ async function humanoid({ govde, kol, bacak, kafaRenk = null, opacity = null }) 
   base.scale.setScalar(olcek);
   base.position.y = -kutu.min.y * olcek;
   g.updateMatrixWorld(true); // parcaKutu ölçek SONRASI doğru kutu versin
+  g.userData.klipler = klipler;
   return g;
 }
 
@@ -66,6 +71,26 @@ async function humanoid({ govde, kol, bacak, kafaRenk = null, opacity = null }) 
 function parcaKutu(g, ad) {
   const p = g.getObjectByName(ad);
   return p ? new THREE.Box3().setFromObject(p) : null;
+}
+
+// Aksesuarı düğüme (kol/kafa) bağla ki animasyonda birlikte hareket etsin.
+// `konum` grup uzayında verilir; düğüm yoksa (kutu-inşa yedek) doğrudan gruba eklenir.
+function dugumeBagla(g, ad, obje, konum) {
+  const dugum = g.getObjectByName(ad);
+  if (!dugum) { obje.position.copy(konum); g.add(obje); return; }
+  g.updateMatrixWorld(true);
+  const s = new THREE.Vector3();
+  dugum.getWorldScale(s);
+  obje.scale.multiplyScalar(1 / s.x); // düğümün ölçeğini telafi et
+  obje.position.copy(dugum.worldToLocal(konum.clone()));
+  dugum.add(obje);
+}
+
+// Kolun alt ucu = el (grup uzayında).
+function elKonumu(g, kolAdi, ileri = 0.12) {
+  const k = parcaKutu(g, kolAdi);
+  if (!k) return null;
+  return new THREE.Vector3((k.min.x + k.max.x) / 2, k.min.y + 0.12, (k.min.z + k.max.z) / 2 + ileri);
 }
 
 function balta(sapRenk = 0x7c4e28) {
@@ -108,12 +133,14 @@ const BUILDERS = {
     const g = await humanoid({ govde: 0x8a3b2e, kol: 0x8a3b2e, bacak: 0x4a3626 });
     const kafa = parcaKutu(g, 'head');
     if (kafa) {
-      const sac = box((kafa.max.x - kafa.min.x) * 1.05, 0.1, (kafa.max.z - kafa.min.z) * 1.05,
-        mat(0x5a3a1e), (kafa.min.x + kafa.max.x) / 2, kafa.max.y + 0.04, (kafa.min.z + kafa.max.z) / 2);
-      g.add(sac);
+      const sac = box((kafa.max.x - kafa.min.x) * 1.05, 0.1, (kafa.max.z - kafa.min.z) * 1.05, mat(0x5a3a1e));
+      dugumeBagla(g, 'head', sac,
+        new THREE.Vector3((kafa.min.x + kafa.max.x) / 2, kafa.max.y + 0.04, (kafa.min.z + kafa.max.z) / 2));
     }
-    const b = balta(); b.position.set(-0.7, 0.95, 0.3); b.rotation.z = 0.25; g.add(b);
-    const k = kilic(); k.position.set(0.7, 1.0, 0.3); k.rotation.z = -0.2; g.add(k);
+    const b = balta(); b.rotation.z = 0.25;
+    dugumeBagla(g, 'arm-right', b, elKonumu(g, 'arm-right', 0.28) ?? new THREE.Vector3(-0.7, 0.95, 0.3));
+    const k = kilic(); k.rotation.z = -0.2;
+    dugumeBagla(g, 'arm-left', k, elKonumu(g, 'arm-left', 0.3) ?? new THREE.Vector3(0.7, 1.0, 0.3));
     return g;
   },
   // yeşil kapüşon, elinde yay
@@ -122,10 +149,10 @@ const BUILDERS = {
     const kafa = parcaKutu(g, 'head');
     if (kafa) {
       const kap = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x2f6a41));
-      kap.position.set((kafa.min.x + kafa.max.x) / 2, kafa.max.y - 0.02, (kafa.min.z + kafa.max.z) / 2);
-      g.add(kap);
+      dugumeBagla(g, 'head', kap,
+        new THREE.Vector3((kafa.min.x + kafa.max.x) / 2, kafa.max.y - 0.02, (kafa.min.z + kafa.max.z) / 2));
     }
-    const y = yay(); y.position.set(0.7, 1.0, 0.35); g.add(y);
+    dugumeBagla(g, 'arm-left', yay(), elKonumu(g, 'arm-left', 0.32) ?? new THREE.Vector3(0.7, 1.0, 0.35));
     return g;
   },
   // mor cübbe (geniş gövde), ellerde sarı kıvılcımlar
@@ -133,10 +160,10 @@ const BUILDERS = {
     const g = await humanoid({ govde: 0x6b3fa0, kol: 0x6b3fa0, bacak: 0x4a2c73 });
     const torso = g.getObjectByName('torso');
     if (torso) torso.scale.set(1.25, 1.1, 1.25);
-    for (const x of [-0.55, 0.55]) {
+    for (const kolAdi of ['arm-left', 'arm-right']) {
       const kivilcim = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), mat(0xffd94a, { emissive: 0xcc9900 }));
-      kivilcim.position.set(x * 1.2, 0.95, 0.25);
-      g.add(kivilcim);
+      const yedek = new THREE.Vector3(kolAdi === 'arm-left' ? 0.66 : -0.66, 0.95, 0.25);
+      dugumeBagla(g, kolAdi, kivilcim, elKonumu(g, kolAdi, 0.22) ?? yedek);
     }
     return g;
   },
@@ -145,10 +172,11 @@ const BUILDERS = {
     const g = await humanoid({ govde: 0xe9b33c, kol: 0xe9b33c, bacak: 0xb9821e, kafaRenk: 0xe9b33c });
     const kafa = parcaKutu(g, 'head');
     const y0 = kafa ? kafa.max.y : 1.7;
+    const tepe = new THREE.Group();
     const direk = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.3), mat(0x7c4e28));
-    direk.position.set(0, y0 + 0.15, 0);
-    const bayrak = box(0.16, 0.1, 0.01, mat(0xd96c4f), 0.09, y0 + 0.24, 0);
-    g.add(direk, bayrak);
+    direk.position.y = 0.15;
+    tepe.add(direk, box(0.16, 0.1, 0.01, mat(0xd96c4f), 0.09, 0.24, 0));
+    dugumeBagla(g, 'head', tepe, new THREE.Vector3(kafa ? (kafa.min.x + kafa.max.x) / 2 : 0, y0, kafa ? (kafa.min.z + kafa.max.z) / 2 : 0));
     return g;
   },
   // koyu mor, yarı saydam, ayak altında halka
@@ -176,6 +204,7 @@ const BUILDERS = {
     }
     g.add(box(0.5, 0.18, 0.18, buz, -0.65, 0.45, 0));              // kuyruk
     for (const x of [-0.3, 0.3]) for (const z of [-0.2, 0.2]) g.add(box(0.16, 0.25, 0.16, koyu, x, 0.12, z));
+    g.userData.sallan = true;
     return g;
   },
   // gri-yeşil iri gövde + kısa bacaklar + sırtında madenci + kazma
@@ -198,6 +227,7 @@ const BUILDERS = {
     adam.add(kazma);
     adam.position.set(-0.1, 1.0, 0);
     g.add(adam);
+    g.userData.sallan = true;
     return g;
   },
   // yeşil sap + altın çanak + içinde diş sırası
@@ -217,6 +247,7 @@ const BUILDERS = {
       g.add(yaprak);
     }
     g.add(sap, canak, govde, dis);
+    g.userData.sallan = true;
     return g;
   },
   // düşman askeri: gri insansı
