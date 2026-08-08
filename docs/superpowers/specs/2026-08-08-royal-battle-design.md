@@ -71,7 +71,7 @@ Karakter dengesi Aslan'ın kurduğu gibi korunur: Okçu hızlı-kırılgan, Made
 | Ne | Kaynak | Not |
 |---|---|---|
 | Köy binaları, kasaba | **Kenney Retro Fantasy Kit** (3D, CC0) | Minecraft havasında retro stil — Aslan'ın çizim estetiğiyle uyumlu |
-| Savaşan karakterler | **Kenney Blocky Characters** (3D animasyonlu, CC0) | Her karaktere ayırt edici renk/silah; yürüme + saldırı animasyonları |
+| Savaşan karakterler | **Aslan'ın karakterleri** — Kenney Blocky Characters yalnızca iskelet/animasyon tabanı (CC0) | Her karakter Aslan'ın çizimine göre giydirilir (Savaşçı: bıyık + balta + kılıç; Okçu: kapüşon + yay; Kara Ruh: yarı saydam...). Ejderha, dinozor, bomba çiçeği gibi karşılığı olmayanlar çizime bakılarak bloklardan sıfırdan kurulur. Her karakterin son halini Aslan onaylar. |
 | Karakter kartları | **Aslan'ın çizimlerinden renklendirilmiş versiyonlar** | Dükkan, envanter ve savaş seçiminde dev boy; çizgisine sadık üretilir, onayı kendisi verir |
 | Butonlar, panel, ikonlar | **Kenney UI Pack + Game Icons** (CC0) | Altın/taş ikonları, Savaş/Envanter tuşları |
 | Eşya görselleri | Aslan'ın eşya çizimlerinden (kalkan, kılıç, tüfek, mini gun, iksirler) | 2. sürümde savaşta kullanım eklenince öne çıkar |
