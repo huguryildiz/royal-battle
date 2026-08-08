@@ -254,13 +254,40 @@ const BUILDERS = {
   async dusman() {
     return humanoid({ govde: 0x5a5f66, kol: 0x5a5f66, bacak: 0x3a3e44 });
   },
+  // düşman okçusu: gri gövde, yeşil kuşak, elinde yay — kapüşon yok
+  async 'dusman-okcu'() {
+    const g = await humanoid({ govde: 0x5a5f66, kol: 0x3e7c4f, bacak: 0x3a3e44 });
+    const govde = parcaKutu(g, 'torso');
+    if (govde) {
+      const kusak = box(
+        (govde.max.x - govde.min.x) * 1.06, 0.12, (govde.max.z - govde.min.z) * 1.06, mat(0x2f6a41));
+      dugumeBagla(g, 'torso', kusak, new THREE.Vector3(
+        (govde.min.x + govde.max.x) / 2, govde.min.y + 0.12, (govde.min.z + govde.max.z) / 2));
+    }
+    dugumeBagla(g, 'arm-left', yay(), elKonumu(g, 'arm-left', 0.32) ?? new THREE.Vector3(0.7, 1.0, 0.35));
+    return g;
+  },
+  // boss: koyu kırmızı dev insansı, omuzlarında dikenler
+  async boss() {
+    const g = await humanoid({ govde: 0x7a1f1f, kol: 0x5a1616, bacak: 0x3d0f0f });
+    for (const kolAdi of ['arm-left', 'arm-right']) {
+      const kol = parcaKutu(g, kolAdi);
+      if (!kol) continue;
+      const diken = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.34, 5), mat(0xd7dce1));
+      dugumeBagla(g, kolAdi, diken, new THREE.Vector3(
+        (kol.min.x + kol.max.x) / 2, kol.max.y + 0.06, (kol.min.z + kol.max.z) / 2));
+    }
+    g.userData.boy = 4.5; // 2.5× normal birim
+    return g;
+  },
 };
 
-const HEDEF_BOY = 2; // ≤ 2 birim
+const HEDEF_BOY = 2; // ≤ 2 birim (boss userData.boy ile bunu aşar)
 export async function buildCharacter(id) {
   const g = await (BUILDERS[id] ?? BUILDERS.dusman)();
+  const hedef = g.userData.boy ?? HEDEF_BOY;
   const kutu = new THREE.Box3().setFromObject(g);
   const boy = kutu.max.y - kutu.min.y;
-  if (boy > HEDEF_BOY) g.scale.setScalar(HEDEF_BOY / boy);
+  if (boy > hedef || g.userData.boy) g.scale.setScalar(hedef / boy);
   return g;
 }

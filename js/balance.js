@@ -25,11 +25,21 @@ export const SELL_PRICES = {
   odun: 1, kalkan: 15, kilic: 20, yay: 20, tufek: 30,
   'guc-iksiri': 25, 'altin-iksir': 30, 'mega-deprem-iksiri': 50,
 };
-export function enemyWave(level) {
-  const n = Math.min(level, 6); // 1. seviye tek düşman: ilk savaş kazanılabilir
+// Her 5. seviye boss seviyesi: tek dev birim + normal dalga yarıya iner, altın ×2.
+export function isBossLevel(level) { return level % 5 === 0; }
 
+export function enemyWave(level) {
   const k = 1 + 0.08 * (level - 1);
-  return Array.from({ length: n }, () => ({
-    atk: Math.round(45 * k), def: Math.round(60 * k), spd: 70, range: 1.8,
-  }));
+  const boss = isBossLevel(level);
+  const n = Math.min(level, 6); // 1. seviye tek düşman: ilk savaş kazanılabilir
+  const adet = boss ? Math.ceil(n / 2) : n;
+  const birlikler = Array.from({ length: adet }, (_, i) =>
+    // 3. seviyeden itibaren her ikinci birim menzilli düşman okçusu
+    (level >= 3 && i % 2 === 1)
+      ? { tip: 'okcu', atk: Math.round(60 * k), def: Math.round(30 * k), spd: 90, range: 6 }
+      : { tip: 'asker', atk: Math.round(45 * k), def: Math.round(60 * k), spd: 70, range: 1.8 });
+  if (boss) {
+    birlikler.unshift({ tip: 'boss', atk: Math.round(90 * k), def: Math.round(220 * k), spd: 40, range: 2.2 });
+  }
+  return birlikler;
 }

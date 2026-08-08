@@ -1,7 +1,7 @@
 // js/battle/scene.js — 3D savaş arenası: kart seç → sol yarıya sür, otomatik dövüş.
 import * as THREE from 'three';
 import { createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle } from './sim.js';
-import { CHARACTERS, enemyWave, ITEM_NAMES } from '../balance.js';
+import { CHARACTERS, enemyWave, isBossLevel, ITEM_NAMES } from '../balance.js';
 import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
 import { sfx } from '../ui/sound.js';
@@ -12,6 +12,8 @@ const IKSIRLER = [
 ];
 
 const byId = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
+// enemyWave tipi → karakter modeli
+const DUSMAN_MESH = { asker: 'dusman', okcu: 'dusman-okcu', boss: 'boss' };
 
 import { buildCharacter } from '../characters/builder.js';
 
@@ -159,8 +161,10 @@ export function initBattle(state) {
     battle = createBattle(state.battleLevel);
     secili = null; surulenler = new Set(); sonucVerildi = false; tufekBekliyor = false;
     for (const [i, stats] of enemyWave(state.battleLevel).entries()) {
-      const u = deployUnit(battle, 'enemy', stats, 5 + (i % 2) * 2.5, -4 + Math.floor(i / 2) * 2.5);
-      unitEkle(u, 'dusman');
+      const boss = stats.tip === 'boss';
+      const u = deployUnit(battle, 'enemy', stats,
+        boss ? 8 : 5 + (i % 2) * 2.5, boss ? 0 : -4 + Math.floor(i / 2) * 2.5);
+      unitEkle(u, DUSMAN_MESH[stats.tip] ?? 'dusman');
     }
     elCiz();
     resize();
@@ -200,14 +204,16 @@ export function initBattle(state) {
     panel.className = 'victory';
     if (battle.winner === 'player') {
       const odul = battleRewards();
-      const kazanilanAltin = odul.gold * battle.goldMult; // altın iksiri ×2
+      // altın iksiri ×2, boss seviyesi ×2 — ayrı katsayılar, çarpışmazlar
+      const bossMult = isBossLevel(battle.level) ? 2 : 1;
+      const kazanilanAltin = odul.gold * battle.goldMult * bossMult;
       addGold(state, kazanilanAltin);
       addItem(state, odul.loot, 1);
       if (odul.gems) addGems(state, odul.gems);
       state.battleLevel += 1;
       refreshHud(state);
       sfx.victory();
-      panel.innerHTML = `<b>Zafer!</b> +${kazanilanAltin} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
+      panel.innerHTML = `<b>${bossMult > 1 ? 'Boss yenildi!' : 'Zafer!'}</b> +${kazanilanAltin} 🪙 · Ganimet: ${ITEM_NAMES[odul.loot]}${odul.gems ? ` · +${odul.gems} 💎` : ''}<br><br>`;
     } else {
       sfx.defeat();
       panel.innerHTML = `<b>Kaybettin</b> Tekrar dene!<br><br>`;
