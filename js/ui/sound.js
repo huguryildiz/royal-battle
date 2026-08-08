@@ -8,8 +8,11 @@ function getCtx() {
   return ctx;
 }
 
+const ANAHTAR = 'royal-battle-ses';
+
 // Tek nota: tip, frekans, süre, gecikme, ses seviyesi
 function ton(type, freq, sure, gecikme = 0, seviye = 0.15) {
+  if (!sfx.enabled) return;
   const c = getCtx();
   if (!c) return;
   const o = c.createOscillator();
@@ -25,6 +28,8 @@ function ton(type, freq, sure, gecikme = 0, seviye = 0.15) {
 }
 
 export const sfx = {
+  // Tercih localStorage'da kalıcı; varsayılan açık.
+  enabled: typeof localStorage === 'undefined' || localStorage.getItem(ANAHTAR) !== 'kapali',
   chop() { ton('square', 90, 0.12); ton('square', 60, 0.1, 0.02); },
   coin() { ton('sine', 880, 0.08); ton('sine', 1320, 0.12, 0.06); },
   deploy() { ton('triangle', 300, 0.1); ton('triangle', 500, 0.12, 0.05); },
@@ -33,3 +38,10 @@ export const sfx = {
   victory() { [523, 659, 784, 1047].forEach((f, i) => ton('triangle', f, 0.18, i * 0.12)); },
   defeat() { [400, 320, 250, 180].forEach((f, i) => ton('sawtooth', f, 0.2, i * 0.15, 0.1)); },
 };
+
+export function sesDegistir() {
+  sfx.enabled = !sfx.enabled;
+  localStorage.setItem(ANAHTAR, sfx.enabled ? 'acik' : 'kapali');
+  if (sfx.enabled) sfx.coin(); // açıldığını duyur
+  return sfx.enabled;
+}

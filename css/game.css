@@ -29,6 +29,11 @@ body{
   font-size:.92rem; border:2px solid #57472F;
 }
 #hud-gold{margin-left:auto}
+#ses-btn{
+  min-width:44px; min-height:44px; justify-content:center; padding:.25rem .5rem;
+  color:inherit; font-family:inherit; font-size:1.2rem; line-height:1; cursor:pointer;
+}
+#ses-btn.kapali{opacity:.55}
 
 /* ---- ekranlar ---- */
 main{flex:1; position:relative; min-height:0}
