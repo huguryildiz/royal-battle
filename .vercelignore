@@ -1,5 +1,6 @@
 .env
-docs
+.claude
+CLAUDE.md
 Royal battle.pdf
 serve.sh
 shot.sh

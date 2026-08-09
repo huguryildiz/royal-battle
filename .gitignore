@@ -2,5 +2,9 @@
 .env
 .vercel
 
+# Yerel çalışma alanı: plan/spec notları ve proje talimatı repoya girmez
+.claude/
+CLAUDE.md
+
 # Tripo kaynak modelleri: büyük (~30MB), sadece sprite render için gerekli — yerelde kalsın
 assets/tripo/*.glb
