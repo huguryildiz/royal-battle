@@ -1,6 +1,6 @@
 // js/battle/scene.js — Clash Royale tarzı 2D savaş arenası (Canvas2D).
-// Dikey arena: üstte düşman, altta oyuncu; nehir + iki köprü, her tarafta
-// 2 yan kule + 1 kral kulesi. Kart seç → alt yarıya dokun, iksirle sür.
+// Yatay arena: solda oyuncu, sağda düşman; ortada nehir + iki köprü, her tarafta
+// 2 yan kule + 1 kral kulesi. Kart seç → sol yarıya dokun, iksirle sür.
 // Brawl Stars dokunuşları: takım halkası, isimli can barı, çalılıklar, vuruş efektleri.
 import {
   createBattle, deployUnit, addTowers, tick, battleRewards,
@@ -72,10 +72,11 @@ export function initBattle(state) {
   }
   addEventListener('resize', resize);
 
-  // Dünya → ekran: arena (ARENA.w × ARENA.h) tuvale sığdırılır, oyuncu altta (z+ aşağı).
+  // Dünya → ekran: arena YATAY durur. Sim'in "ileri" ekseni (z) ekranın yatay eksenine,
+  // "yanal" ekseni (x) dikey eksene düşer. Oyuncu solda (z>0), düşman sağda (z<0).
   function metrics() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
-    const s = Math.min(w / (ARENA.w + 0.8), h / (ARENA.h + 1));
+    const s = Math.min(w / (ARENA.h + 1), h / (ARENA.w + 0.8));
     return { s, cx: w / 2, cy: h / 2, w, h };
   }
 
@@ -99,7 +100,7 @@ export function initBattle(state) {
       : '';
     const ipucu = tufekBekliyor
       ? '🔫 Tüfek hazır — süreceğin sonraki birim uzaktan vuracak'
-      : `Karta dokun, sonra alt yarıya dokunup sür — Seviye ${state.battleLevel}`;
+      : `Karta dokun, sonra sol yarıya dokunup sür — Seviye ${state.battleLevel}`;
     ui.innerHTML = `<div class="elixrow">🧪<div class="elixbar"><div class="fill"></div></div><span class="elixn">0</span></div>
       <div class="handrow">${kartlar}</div>
       <div class="actrow">${topBtn}${tufekBtn}${iksirBtnleri}</div>
@@ -189,9 +190,9 @@ export function initBattle(state) {
     if (!secili || !battle || battle.over) return;
     const { s, cx, cy } = metrics();
     const r = canvas.getBoundingClientRect();
-    const x = (e.clientX - r.left - cx) / s;
-    const z = (e.clientY - r.top - cy) / s;
-    if (z < 0.6) return; // sadece kendi (alt) yarın
+    const z = (cx - (e.clientX - r.left)) / s; // ekran yatayı → dünya ileri ekseni
+    const x = ((e.clientY - r.top) - cy) / s;  // ekran dikeyi → dünya yanal ekseni
+    if (z < 0.6) return; // sadece kendi (sol) yarın
     sur(secili, clamp(x, -5.4, 5.4), clamp(z, 0.9, 9.4));
   });
 
@@ -236,7 +237,8 @@ export function initBattle(state) {
       }
       carpmalar.push({ x: ev.to.x, z: ev.to.z, t: -gec });
       if (sayilar.length < 30) {
-        sayilar.push({ x: ev.to.x + (Math.min(sayilar.length, 3) - 1) * 0.35, z: ev.to.z - 0.9, t: -gec, deger: Math.round(ev.from.atk * 0.5) });
+        // Hedefin üstünde belirsin (ekran yukarısı = dünya -x), üst üste binmesin diye z'de yayılır.
+        sayilar.push({ x: ev.to.x - 0.9, z: ev.to.z + (Math.min(sayilar.length, 3) - 1) * 0.35, t: -gec, deger: Math.round(ev.from.atk * 0.5) });
       }
     }
     battle.events.length = 0;
@@ -255,11 +257,12 @@ export function initBattle(state) {
     const { s, cx, cy, w, h } = metrics();
     if (!w || !h) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const X = x => cx + x * s, Y = z => cy + z * s;
+    // EX: dünya ileri ekseni (z) → ekran yatayı, oyuncu solda. EY: dünya yanal ekseni (x) → ekran dikeyi.
+    const EX = z => cx - z * s, EY = x => cy + x * s;
     ctx.fillStyle = '#9BCFE0';
     ctx.fillRect(0, 0, w, h);
 
-    const ax = X(-ARENA.w / 2), ay = Y(-ARENA.h / 2), aw = ARENA.w * s, ah = ARENA.h * s;
+    const ax = EX(ARENA.h / 2), ay = EY(-ARENA.w / 2), aw = ARENA.h * s, ah = ARENA.w * s;
     // Arena zemini (yuvarlatılmış, kırpılır)
     ctx.save();
     ctx.beginPath();
@@ -268,51 +271,53 @@ export function initBattle(state) {
     ctx.fillStyle = RENK.cim1;
     ctx.fillRect(ax, ay, aw, ah);
     ctx.fillStyle = RENK.cim2;
-    for (let i = 0; i < 10; i++) if (i % 2) ctx.fillRect(ax, ay + (i * ah) / 10, aw, ah / 10);
+    // Yatay bantlar: saldırı şeritlerini (sol→sağ akış) gözle takip ettirir
+    for (let i = 0; i < 8; i++) if (i % 2) ctx.fillRect(ax, ay + (i * ah) / 8, aw, ah / 8);
     // Çalılıklar (Brawl Stars havası — dekoratif)
     for (const [bx, bz] of CALILAR) {
       for (const [ox, oz, or_] of [[0, 0, 0.5], [-0.38, 0.16, 0.34], [0.36, 0.2, 0.36], [0.05, -0.3, 0.34]]) {
         ctx.fillStyle = (ox + oz) > 0 ? RENK.cali : RENK.caliKoyu;
         ctx.beginPath();
-        ctx.arc(X(bx + ox), Y(bz + oz), or_ * s, 0, Math.PI * 2);
+        ctx.arc(EX(bz + oz), EY(bx + ox), or_ * s, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-    // Nehir + dalgalar
+    // Nehir (dikey şerit) + dalgalar
     ctx.fillStyle = RENK.nehir;
-    ctx.fillRect(ax, Y(-ARENA.riverHalf), aw, ARENA.riverHalf * 2 * s);
+    ctx.fillRect(EX(ARENA.riverHalf), ay, ARENA.riverHalf * 2 * s, ah);
     ctx.strokeStyle = RENK.nehirKoyu;
     ctx.lineWidth = 2;
     for (const [dx, dz] of [[-3.9, -0.3], [-1.2, 0.35], [0.8, -0.35], [4, 0.3]]) {
       ctx.beginPath();
-      ctx.arc(X(dx), Y(dz), 0.22 * s, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.arc(EX(dz), EY(dx), 0.22 * s, -Math.PI * 0.35, Math.PI * 0.35);
       ctx.stroke();
     }
-    // Köprüler
+    // Köprüler: nehri yatay olarak geçer, tahtalar geçiş yönüne dik (dikey çizgiler)
     for (const bx of [-ARENA.bridgeX, ARENA.bridgeX]) {
-      const kx = X(bx - 0.95), ky = Y(-1.15), kw = 1.9 * s, kh = 2.3 * s;
+      const kx = EX(1.15), ky = EY(bx - 0.95), kw = 2.3 * s, kh = 1.9 * s;
       ctx.fillStyle = RENK.kopru;
       ctx.fillRect(kx, ky, kw, kh);
       ctx.strokeStyle = RENK.kopruKoyu;
       ctx.lineWidth = 2;
       for (let i = 1; i < 5; i++) {
         ctx.beginPath();
-        ctx.moveTo(kx, ky + (i * kh) / 5);
-        ctx.lineTo(kx + kw, ky + (i * kh) / 5);
+        ctx.moveTo(kx + (i * kw) / 5, ky);
+        ctx.lineTo(kx + (i * kw) / 5, ky + kh);
         ctx.stroke();
       }
       ctx.strokeStyle = RENK.kopruKoyu;
       ctx.lineWidth = 4;
       ctx.strokeRect(kx, ky, kw, kh);
     }
-    // Kart seçiliyken sürme bölgesi vurgusu (alt yarı)
+    // Kart seçiliyken sürme bölgesi vurgusu (sol yarı)
     if (secili && battle && !battle.over) {
+      const bw = EX(0.9) - ax;
       ctx.fillStyle = 'rgba(233,179,60,.16)';
-      ctx.fillRect(ax, Y(0.9), aw, Y(ARENA.h / 2) - Y(0.9));
+      ctx.fillRect(ax, ay, bw, ah);
       ctx.setLineDash([8, 6]);
       ctx.strokeStyle = '#E9B33C';
       ctx.lineWidth = 3;
-      ctx.strokeRect(ax + 3, Y(0.9), aw - 6, Y(ARENA.h / 2) - Y(0.9) - 3);
+      ctx.strokeRect(ax + 3, ay + 3, bw - 3, ah - 6);
       ctx.setLineDash([]);
     }
     ctx.restore();
@@ -323,17 +328,17 @@ export function initBattle(state) {
     ctx.roundRect(ax, ay, aw, ah, 10);
     ctx.stroke();
 
-    // Birimler + kuleler (üstten alta boyama sırası)
+    // Birimler + kuleler: ekranda üstte olan (dünya -x) önce çizilir
     if (battle) {
-      const liste = [...battle.units].sort((a, b) => a.z - b.z);
-      for (const u of liste) (u.tower ? kuleCiz : birimCiz)(u, s, X, Y);
+      const liste = [...battle.units].sort((a, b) => a.x - b.x);
+      for (const u of liste) (u.tower ? kuleCiz : birimCiz)(u, s, EX, EY);
     }
 
     // Oklar / mermiler
     for (const ok of oklar) {
       ok.t += dt;
       const t = Math.min(ok.t / ok.sure, 1);
-      const px = X(ok.x0 + (ok.x1 - ok.x0) * t), py = Y(ok.z0 + (ok.z1 - ok.z0) * t);
+      const px = EX(ok.z0 + (ok.z1 - ok.z0) * t), py = EY(ok.x0 + (ok.x1 - ok.x0) * t);
       ctx.fillStyle = ok.buyu ? '#FFD94A' : '#2B2117';
       ctx.beginPath();
       ctx.arc(px, py, ok.buyu ? 5 : 3.5, 0, Math.PI * 2);
@@ -358,8 +363,8 @@ export function initBattle(state) {
         const a = (i / 6) * Math.PI * 2 + 0.5;
         const r0 = 0.12 * s + p * 0.3 * s, r1 = r0 + 0.22 * s * (1 - p);
         ctx.beginPath();
-        ctx.moveTo(X(c.x) + Math.cos(a) * r0, Y(c.z) + Math.sin(a) * r0);
-        ctx.lineTo(X(c.x) + Math.cos(a) * r1, Y(c.z) + Math.sin(a) * r1);
+        ctx.moveTo(EX(c.z) + Math.cos(a) * r0, EY(c.x) + Math.sin(a) * r0);
+        ctx.lineTo(EX(c.z) + Math.cos(a) * r1, EY(c.x) + Math.sin(a) * r1);
         ctx.stroke();
       }
     }
@@ -375,9 +380,9 @@ export function initBattle(state) {
       ctx.lineWidth = 3;
       ctx.strokeStyle = `rgba(43,33,23,${0.9 * (1 - p)})`;
       ctx.fillStyle = `rgba(255,243,220,${1 - p})`;
-      const py = Y(n.z) - p * 18;
-      ctx.strokeText(`-${n.deger}`, X(n.x), py);
-      ctx.fillText(`-${n.deger}`, X(n.x), py);
+      const py = EY(n.x) - p * 18;
+      ctx.strokeText(`-${n.deger}`, EX(n.z), py);
+      ctx.fillText(`-${n.deger}`, EX(n.z), py);
     }
     sayilar = sayilar.filter(n => n.t < 0.7);
 
@@ -388,18 +393,19 @@ export function initBattle(state) {
       ctx.strokeStyle = `rgba(255,255,255,${0.9 * (1 - q)})`;
       ctx.lineWidth = 5 * (1 - q) + 1;
       ctx.beginPath();
-      ctx.arc(X(p.x), Y(p.z), (p.r + q * 0.9) * s, 0, Math.PI * 2);
+      ctx.arc(EX(p.z), EY(p.x), (p.r + q * 0.9) * s, 0, Math.PI * 2);
       ctx.stroke();
     }
     pofler = pofler.filter(p => p.t < 0.35);
   }
 
-  function kuleCiz(u, s, X, Y) {
+  function kuleCiz(u, s, EX, EY) {
     const b = u.tower === 'king' ? 2.2 : 1.7;
-    const px = X(u.x) - (b * s) / 2, py = Y(u.z) - (b * s) / 2, ps = b * s;
+    const mx = EX(u.z), my = EY(u.x), ps = b * s;
+    const px = mx - ps / 2, py = my - ps / 2;
     ctx.fillStyle = 'rgba(43,33,23,.18)';
     ctx.beginPath();
-    ctx.ellipse(X(u.x), Y(u.z) + ps * 0.42, ps * 0.5, ps * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(mx, my + ps * 0.42, ps * 0.5, ps * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = RENK.tas;
     ctx.strokeStyle = RENK.tasKoyu;
@@ -417,7 +423,7 @@ export function initBattle(state) {
     ctx.fillStyle = u.side === 'player' ? RENK.oyuncu : RENK.dusman;
     ctx.fillRect(px + 2, py + ps * 0.4, ps - 4, ps * 0.2);
     // Kale kapısı: oyuncuya (ekranın altına) dönük kemerli ahşap kapı
-    const kg = ps * 0.3, kh = ps * 0.32, kx = X(u.x), ky = py + ps - 1;
+    const kg = ps * 0.3, kh = ps * 0.32, kx = mx, ky = py + ps - 1;
     ctx.fillStyle = RENK.kopru;
     ctx.strokeStyle = RENK.kopruKoyu;
     ctx.lineWidth = 2;
@@ -433,15 +439,15 @@ export function initBattle(state) {
       ctx.font = `${Math.round(ps * 0.42)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('👑', X(u.x), py + ps * 0.22);
+      ctx.fillText('👑', mx, py + ps * 0.22);
       ctx.textBaseline = 'alphabetic';
     }
-    canBar(u, s, X, Y, b * 0.95, py - ps * 0.22);
+    canBar(u, s, EX, EY, b * 0.95, py - ps * 0.22);
   }
 
-  function birimCiz(u, s, X, Y) {
+  function birimCiz(u, s, EX, EY) {
     const r = (u.r ?? 0.62) * s;
-    const px = X(u.x), py = Y(u.z);
+    const px = EX(u.z), py = EY(u.x);
     // Takım halkası (yerde, ışıklı)
     const halka = u.side === 'player' ? RENK.oyuncu : RENK.dusman;
     ctx.fillStyle = u.side === 'player' ? 'rgba(62,124,199,.30)' : 'rgba(217,108,79,.30)';
@@ -484,13 +490,13 @@ export function initBattle(state) {
       ctx.fillText('🔫', px + r * 0.8, py - r * 0.7);
     }
     // Birim etiketi ayakların altında: kuleye alttan yaklaşan birimler kule barıyla çakışmaz.
-    canBar(u, s, X, Y, 1.5, py + r * 1.15, true);
+    canBar(u, s, EX, EY, 1.5, py + r * 1.15, true);
   }
 
   // Brawl Stars tarzı: isim + sayılı can barı. `adAltta` ise isim barın altına yazılır.
-  function canBar(u, s, X, Y, wWorld, py, adAltta = false) {
+  function canBar(u, s, EX, EY, wWorld, py, adAltta = false) {
     const bw = wWorld * s, bh = Math.max(5, 0.16 * s);
-    const px = X(u.x) - bw / 2;
+    const mx = EX(u.z), px = mx - bw / 2;
     const oran = Math.max(u.hp / u.maxHp, 0);
     ctx.font = `800 ${Math.max(9, Math.round(0.24 * s))}px "Avenir Next","Trebuchet MS",sans-serif`;
     ctx.textAlign = 'center';
@@ -499,8 +505,8 @@ export function initBattle(state) {
     ctx.lineWidth = 2.5;
     if (u.ad) {
       const ay = adAltta ? py + bh + Math.max(11, 0.26 * s) : py - bh * 0.7;
-      ctx.strokeText(u.ad, X(u.x), ay);
-      ctx.fillText(u.ad, X(u.x), ay);
+      ctx.strokeText(u.ad, mx, ay);
+      ctx.fillText(u.ad, mx, ay);
     }
     ctx.fillStyle = 'rgba(43,33,23,.6)';
     ctx.beginPath();
@@ -514,7 +520,7 @@ export function initBattle(state) {
     }
     ctx.font = `900 ${Math.max(8, Math.round(0.2 * s))}px "Avenir Next",sans-serif`;
     ctx.fillStyle = '#fff';
-    ctx.fillText(Math.max(Math.ceil(u.hp), 0), X(u.x), py + bh - 1.5);
+    ctx.fillText(Math.max(Math.ceil(u.hp), 0), mx, py + bh - 1.5);
   }
 
   // --- Ana döngü ---
