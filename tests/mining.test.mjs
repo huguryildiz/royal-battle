@@ -2,21 +2,21 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createState } from '../js/state.js';
 import { mineReward } from '../js/ui/mining.js';
-import { MINE } from '../js/balance.js';
+import { MINE, CHARACTERS } from '../js/balance.js';
 
 // rng dizisini sırayla veren yardımcı
 const rngDizi = (...v) => { let i = 0; return () => v[i++ % v.length]; };
 
 test('mineReward: şans tuttuğunda taş verir, altın vermez', () => {
   const s = createState();
-  const r = mineReward(s, rngDizi(0.1, 0.0)); // 0.1 < 0.35 → taş; 0.0 → en düşük adet
+  const r = mineReward(s, rngDizi(0.1, 0.0)); // 0.1 < MINE.chance → taş; 0.0 → en düşük adet
   assert.equal(r.gems, MINE.min);
   assert.equal(r.gold, 0);
   assert.equal(s.gems, MINE.min);
   assert.equal(s.gold, 100); // başlangıç altını değişmedi
 });
 
-test('mineReward: şans tutmazsa 1 altın teselli', () => {
+test('mineReward: şans tutmazsa MINE.gold altın teselli', () => {
   const s = createState();
   const r = mineReward(s, rngDizi(0.9));
   assert.equal(r.gems, 0);
@@ -32,14 +32,16 @@ test('mineReward: en yüksek adet MINE.max', () => {
   assert.equal(s.gems, MINE.max);
 });
 
-test('tur ekonomisi: beklenen taş 4-8 arası', () => {
-  const beklenen = MINE.rocks * MINE.chance * (MINE.min + MINE.max) / 2;
-  assert.ok(beklenen >= 4 && beklenen <= 8, `beklenen=${beklenen}`);
+const turBasiTas = MINE.rocks * MINE.chance * (MINE.min + MINE.max) / 2;
+
+test('tur ekonomisi: bir maden turu 12-20 taş verir', () => {
+  assert.ok(turBasiTas >= 12 && turBasiTas <= 20, `beklenen=${turBasiTas}`);
 });
 
-test('tur ekonomisi: Kara Ruh (2600 💎) makul emekle ulaşılabilir — 500 turdan az', () => {
-  const beklenen = MINE.rocks * MINE.chance * (MINE.min + MINE.max) / 2;
-  assert.ok(2600 / beklenen < 500, `gereken tur=${2600 / beklenen}`);
+test('tur ekonomisi: en pahalı taş karakteri 30 maden turundan az sürer', () => {
+  // Eski dengede Kara Ruh 465 tur (~3700 dokunuş) istiyordu — çocuk için ulaşılamazdı.
+  const enPahali = Math.max(...CHARACTERS.filter(c => c.cost.gems).map(c => c.cost.gems));
+  assert.ok(enPahali / turBasiTas < 30, `gereken tur=${enPahali / turBasiTas}`);
 });
 
 test('kaya 3 dokunuşta kırılır', () => {

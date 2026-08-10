@@ -2,19 +2,48 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createBattle, deployUnit, tick, battleRewards, applyPotion, fireCannon, equipRifle,
-  addTowers, spendElixir, ARENA, ELIXIR, TOWER_STATS,
+  addTowers, spendElixir, ARENA, ELIXIR, TOWER_STATS, KURAL, canHesapla, yurumeHizi, vurusAraligi,
 } from '../js/battle/sim.js';
-import { LOOT_TABLE } from '../js/balance.js';
+import { LOOT_TABLE, battleGold } from '../js/balance.js';
+
+const DINO_HP = canHesapla(100, 1.8);   // yakın dövüşçü: def×canKat×yakinZirh
+const OKCU_HP = canHesapla(30, 6);      // menzilli: def×canKat
 
 const OKCU = { atk: 89, def: 30, spd: 100, range: 6 };
 const DINO = { atk: 100, def: 100, spd: 21, range: 1.8 };
 const ZAYIF = { atk: 10, def: 1, spd: 50, range: 1.8 };
 const SAVASCI = { atk: 50, def: 94, spd: 75, range: 1.8 };
 
-test('hp = def*10', () => {
+test('can = def × canKat, yakın dövüşçüde ×yakinZirh', () => {
   const b = createBattle(1);
-  const u = deployUnit(b, 'player', DINO, 0, 0);
-  assert.equal(u.hp, 1000); assert.equal(u.maxHp, 1000);
+  const dino = deployUnit(b, 'player', DINO, 0, 0);
+  const okcu = deployUnit(b, 'player', OKCU, 0, 0);
+  assert.equal(dino.hp, 100 * KURAL.canKat * KURAL.yakinZirh);
+  assert.equal(dino.maxHp, dino.hp);
+  assert.equal(okcu.hp, 30 * KURAL.canKat, 'menzilli birime yakın dövüş zırhı yok');
+});
+
+test('yürüme hızı ile vuruş hızı ayrı: en yavaş birim arenayı makul sürede geçer', () => {
+  // Eski kural (spd/25) Maden Dinozoru'nu 0.84 birim/sn yapıyordu → 20 birimlik arena 24 sn.
+  assert.ok(yurumeHizi(21) >= 1.8, `spd21 hızı ${yurumeHizi(21)}`);
+  assert.ok(yurumeHizi(101) / yurumeHizi(21) < 2, 'hız uçları 2 kattan fazla açılmamalı');
+  assert.ok(vurusAraligi(21) > vurusAraligi(101), 'yavaş birim yine de seyrek vurur');
+});
+
+test('yaklaşan yakın dövüşçü daha az hasar alır, menzile girince kalkan iner', () => {
+  const b = createBattle(1);
+  const okcu = deployUnit(b, 'player', OKCU, 0, 0);
+  const dino = deployUnit(b, 'enemy', DINO, 5, 0);   // menzil 1.8, mesafe 5 → yaklaşıyor
+  tick(b, 0.05);
+  const yaklasirken = dino.maxHp - dino.hp;
+  assert.ok(dino.yaklasiyor, 'menzil dışındaki yakın dövüşçü yaklaşıyor sayılmalı');
+  assert.ok(yaklasirken > 0 && yaklasirken < okcu.atk * KURAL.hasar,
+    `yaklaşırken alınan hasar ${yaklasirken}, tam hasar ${okcu.atk * KURAL.hasar}`);
+  const b2 = createBattle(1);
+  const okcu2 = deployUnit(b2, 'player', OKCU, 0, 0);
+  const dino2 = deployUnit(b2, 'enemy', DINO, 1, 0); // menzilde → kalkan yok
+  tick(b2, 0.05);
+  assert.equal(dino2.maxHp - dino2.hp, okcu2.atk * KURAL.hasar);
 });
 
 test('hızlı birim yavaş birimden önce vurur', () => {
@@ -27,12 +56,12 @@ test('hızlı birim yavaş birimden önce vurur', () => {
   assert.ok(dinoHasar > okcuHasar, `dino ${dinoHasar}, okçu ${okcuHasar}`);
 });
 
-test('birim menzile yürür: spd75, dt=1 → 3 birim yol', () => {
+test('birim menzile yürür: 1 saniyede yuruHiz kadar yol', () => {
   const b = createBattle(1);
-  const u = deployUnit(b, 'player', { atk: 50, def: 94, spd: 75, range: 1.8 }, -10, 0);
+  const u = deployUnit(b, 'player', SAVASCI, -10, 0);
   deployUnit(b, 'enemy', DINO, 10, 0);
   tick(b, 1);
-  assert.ok(Math.abs(u.x - (-7)) < 0.01, `x=${u.x}`);
+  assert.ok(Math.abs(u.x - (-10 + yurumeHizi(75))) < 0.01, `x=${u.x}`);
 });
 
 test('tek taraf kalınca over ve winner doğru', () => {
@@ -73,28 +102,30 @@ test('mega deprem iksiri: tüm düşmanlara 150 hasar, oyuncuya dokunmaz', () =>
   const d1 = deployUnit(b, 'enemy', DINO, 5, 0);
   const d2 = deployUnit(b, 'enemy', OKCU, 6, 0); // hp 300
   applyPotion(b, 'mega-deprem-iksiri');
-  assert.equal(oyuncu.hp, 1000);
-  assert.equal(d1.hp, 850);
-  assert.equal(d2.hp, 150);
+  assert.equal(oyuncu.hp, DINO_HP);
+  assert.equal(d1.hp, DINO_HP - 150);
+  assert.equal(d2.hp, OKCU_HP - 150);
 });
 test('top: savaş başına 1 kez, en yüksek canlı düşmana 300 hasar', () => {
   const b = createBattle(1);
   deployUnit(b, 'player', OKCU, 0, 0);
-  const guclu = deployUnit(b, 'enemy', DINO, 5, 0);  // hp 1000
-  const zayif = deployUnit(b, 'enemy', OKCU, 6, 0);  // hp 300
+  const guclu = deployUnit(b, 'enemy', DINO, 5, 0);
+  const zayif = deployUnit(b, 'enemy', OKCU, 6, 0);
   assert.equal(fireCannon(b), true);
-  assert.equal(guclu.hp, 700);
-  assert.equal(zayif.hp, 300);
+  assert.equal(guclu.hp, DINO_HP - 300);
+  assert.equal(zayif.hp, OKCU_HP);
   assert.equal(fireCannon(b), false); // ikinci atış yok
-  assert.equal(guclu.hp, 700);
+  assert.equal(guclu.hp, DINO_HP - 300);
 });
-test('battleRewards: rng=0.05 → taş düşer (5-15), rng=0.9 → taş 0; gold hep 25', () => {
-  const r = battleRewards(() => 0.05);
-  assert.equal(r.gold, 25);
-  assert.ok(r.gems >= 5 && r.gems <= 15, `gems=${r.gems}`);
+test('battleRewards: şans tutunca taş düşer, altın seviyeye göre gelir', () => {
+  const r = battleRewards(3, () => 0.05);
+  assert.equal(r.gold, battleGold(3));
+  assert.ok(r.gems > 0, `gems=${r.gems}`);
   assert.ok(LOOT_TABLE.includes(r.loot));
-  const r2 = battleRewards(() => 0.9);
-  assert.equal(r2.gems, 0); assert.equal(r2.gold, 25);
+  const r2 = battleRewards(3, () => 0.99);
+  assert.equal(r2.gems, 0);
+  assert.equal(r2.gold, battleGold(3));
+  assert.ok(battleRewards(10, () => 0.99).gold > r2.gold, '10. seviye daha çok altın');
 });
 
 test('tüfek: menzil 8, atk +10; ikinci kez takılmaz; düşmana takılmaz', () => {
@@ -135,23 +166,36 @@ test('ganimet tablosunda tüfek var', () => {
 
 // --- Clash Royale modu: kuleler, köprüler, iksir ---
 
-test('kuleler: her tarafta 2 yan + 1 kral, hp = def*10', () => {
+test('kuleler: her tarafta 2 yan + 1 kral, can = def × canKat × kuleZirh', () => {
   const b = createBattle(1);
   addTowers(b);
   const kuleler = b.units.filter(u => u.tower);
   assert.equal(kuleler.length, 6);
   const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
-  assert.equal(kral.hp, TOWER_STATS.king.def * 10);
+  assert.equal(kral.hp, Math.round(TOWER_STATS.king.def * KURAL.canKat * KURAL.kuleZirh));
   assert.ok(kral.z < 0, 'düşman kral kulesi üst yarıda');
 });
 
-test('düşman kuleleri ölçekle güçlenir, oyuncununkiler sabit', () => {
+test('kule ölçeği simetrik: iki tarafın kuleleri de seviyeyle büyür', () => {
+  // Eskiden yalnız düşman kuleleri büyüyordu; oyuncunun sabit kral kulesi 8. seviyeden
+  // sonra 20 saniyede düşüyordu ve savaş kazanılamıyordu.
   const b = createBattle(6);
   addTowers(b, 1.4);
   const dusmanKral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
   const oyuncuKral = b.units.find(u => u.side === 'player' && u.tower === 'king');
-  assert.equal(dusmanKral.hp, Math.round(TOWER_STATS.king.def * 1.4) * 10);
-  assert.equal(oyuncuKral.hp, TOWER_STATS.king.def * 10);
+  assert.equal(oyuncuKral.hp, dusmanKral.hp);
+  const b1 = createBattle(1);
+  addTowers(b1, 1);
+  const kucuk = b1.units.find(u => u.side === 'player' && u.tower === 'king');
+  assert.ok(oyuncuKral.hp > kucuk.hp, 'seviye ölçeği kuleleri büyütmeli');
+});
+
+test('kuleler birimlerden dayanıklı: savaş erken bitmesin', () => {
+  const b = createBattle(1);
+  addTowers(b);
+  const kral = b.units.find(u => u.tower === 'king');
+  const savasci = deployUnit(b, 'player', SAVASCI, 0, 0);
+  assert.ok(kral.hp > savasci.hp, `kral ${kral.hp}, savaşçı ${savasci.hp}`);
 });
 
 test('kral kulesi düşünce savaş biter, yıkan kazanır', () => {
@@ -181,12 +225,12 @@ test('nehrin karşısındaki hedefe köprüye doğru yürünür', () => {
   assert.ok(u.z < 4, `nehre yaklaşmalı, z=${u.z}`);
 });
 
-test('aynı taraftaki hedefe düz yürünür (eski davranış)', () => {
+test('aynı taraftaki hedefe düz yürünür', () => {
   const b = createBattle(1);
   const u = deployUnit(b, 'player', SAVASCI, -10, 0);
   deployUnit(b, 'enemy', DINO, 10, 0);
   tick(b, 1);
-  assert.ok(Math.abs(u.x - (-7)) < 0.01, `x=${u.x}`);
+  assert.ok(Math.abs(u.x - (-10 + yurumeHizi(75))) < 0.01, `x=${u.x}`);
 });
 
 test('iksir: zamanla dolar (1/1.2sn), max 10, harcanınca düşer', () => {
@@ -223,8 +267,8 @@ test('kral kulesi uyur: hasar almadan ve yan kule düşmeden ateş etmez', () =>
   const b = createBattle(1);
   addTowers(b);
   const kral = b.units.find(u => u.side === 'enemy' && u.tower === 'king');
-  // Hareketsiz kukla (spd 0): krala dokunmadan menzilinde bekler
-  deployUnit(b, 'player', { atk: 10, def: 100, spd: 0, range: 1.8 }, 0, -6);
+  // Zararsız kukla: krala hasar vermeden menzilinde durur (atk 0, menzil mesafeden uzun)
+  deployUnit(b, 'player', { atk: 0, def: 100, spd: 1, range: 3 }, 0, -6);
   for (let t = 0; t < 2; t += 0.05) tick(b, 0.05);
   assert.ok(!b.events.some(ev => ev.from === kral), 'uyuyan kral vurmamalı');
   kral.hp -= 1; // kral hasar aldı → uyanır

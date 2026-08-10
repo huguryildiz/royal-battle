@@ -1,11 +1,36 @@
 // js/battle/sim.js — SAF savaş simülasyonu. DOM/Canvas import ETMEZ.
 // Clash Royale tarzı: dikey arena, nehir + iki köprü, kuleler, iksir.
-import { BATTLE_WIN_GOLD, GEM_DROP, LOOT_TABLE, RIFLE } from '../balance.js';
+import { battleGold, GEM_DROP, LOOT_TABLE, RIFLE } from '../balance.js';
 
 // Arena: x genişlik [-6,6], z uzunluk [-10,10]; oyuncu z>0 (alt), düşman z<0 (üst).
 // Genişlik 12: yan kuleler (±3.4) birbirinin menzili (6.5) DIŞINDA kalır → her şeridi tek kule savunur.
 export const ARENA = { w: 12, h: 20, bridgeX: 3.4, riverHalf: 0.9 };
 export const ELIXIR = { start: 5, max: 10, perSec: 1 / 1.2 };
+
+// Stat → davranış eşlemesi. Aslan'ın atk/def/spd sayıları SABİT; denge bu eşlemeyle kurulur.
+// Önceden spd tek başına hem yürüyüşü hem vuruş hızını belirliyordu; uçlar aşırı açılıyordu
+// (Maden Dinozoru spd21 → arenayı 24 sn'de geçiyor ve saniyede 17 hasar veriyordu, yani
+// 3000 altınlık kart bedava Savaşçı'dan zayıftı). İkisi ayrıldı ve ikisi de sıkıştırıldı.
+export const KURAL = {
+  hasar: 0.5,        // vuruş başına verilen hasar = atk × hasar
+  vurusKat: 18,      // vuruş aralığı (sn) = vurusKat/spd + vurusTaban
+  vurusTaban: 0.45,
+  yuruTaban: 1.6,    // yürüme hızı (birim/sn) = yuruTaban + spd × yuruKat
+  yuruKat: 1 / 50,
+  yakinMenzil: 3,    // menzili bunun altındaysa birim "yakın dövüşçü" sayılır
+  yakinZirh: 1.5,    // yakın dövüşçünün canı ×yakinZirh
+  // Yakın dövüşçünün asıl dezavantajı ayakta kalmak değil, menzillinin ateşi altında 4+ birim
+  // YÜRÜMEK. Telafiyi cana yığmak (×2.4) Okçu'yu (300 can) oyun dışı bırakıyordu; onun yerine
+  // hasar yalnızca yaklaşma sırasında azaltılıyor — "koşarken kalkanını kaldırır".
+  yaklasmaKalkan: 0.45, // yürüyen yakın dövüşçünün aldığı hasar ×yaklasmaKalkan
+  canKat: 10,        // can = def × canKat
+  kuleZirh: 2.6,     // kule canı ×kuleZirh — kuleler kağıttan olunca savaş 30 sn'de bitiyor,
+                     // düşmanın takviye dalgaları hiç devreye girmeden oyuncu kazanıyordu
+};
+export const vurusAraligi = spd => KURAL.vurusKat / spd + KURAL.vurusTaban;
+export const yurumeHizi = spd => KURAL.yuruTaban + spd * KURAL.yuruKat;
+export const canHesapla = (def, range) =>
+  Math.round(def * KURAL.canKat * (range < KURAL.yakinMenzil ? KURAL.yakinZirh : 1));
 // Kule statları: hp = def*10 kuralına uyar; menzil okçudan (6) uzun ki kuleler bedava kesilmesin.
 export const TOWER_STATS = {
   side: { atk: 50, def: 40, spd: 55, range: 6.5 },
@@ -21,13 +46,15 @@ export function createBattle(level) {
   };
 }
 
-// Her iki tarafa 2 yan + 1 kral kulesi diker. Düşman kuleleri `olcek` ile güçlenir.
+// Her iki tarafa 2 yan + 1 kral kulesi diker; `olcek` arenanın seviyesidir ve İKİ TARAFA da
+// uygulanır. Eskiden yalnız düşman kuleleri büyüyordu: 8. seviyeden sonra sabit 700 canlı
+// oyuncu kral kulesi 20 saniyede düşüyor, savaş kazanılamaz hâle geliyordu.
 // Kuleli savaşta kazanan, karşı kral kulesini yıkan taraftır.
 export function addTowers(battle, olcek = 1) {
   battle.hasTowers = true;
   for (const side of ['player', 'enemy']) {
     const yon = side === 'player' ? 1 : -1;
-    const k = side === 'enemy' ? olcek : 1;
+    const k = olcek;
     for (const [tip, x, z] of [
       ['side', -ARENA.bridgeX, 5.6], ['side', ARENA.bridgeX, 5.6], ['king', 0, 8.6],
     ]) {
@@ -36,6 +63,8 @@ export function addTowers(battle, olcek = 1) {
         { atk: Math.round(s.atk * k), def: Math.round(s.def * k), spd: s.spd, range: s.range },
         x, z * yon);
       u.tower = tip;
+      u.maxHp = Math.round(u.maxHp * KURAL.kuleZirh);
+      u.hp = u.maxHp;
     }
   }
 }
@@ -48,9 +77,11 @@ export function spendElixir(battle, miktar) {
 
 export function deployUnit(battle, side, stats, x, z) {
   const boost = side === 'player' ? battle.atkBoost : 1;
+  const can = canHesapla(stats.def, stats.range);
   const unit = {
     side, atk: Math.round(stats.atk * boost), def: stats.def, spd: stats.spd, range: stats.range,
-    hp: stats.def * 10, maxHp: stats.def * 10, x, z, target: null, cooldown: 0,
+    hp: can, maxHp: can, x, z, target: null, cooldown: 0,
+    vurusAralik: vurusAraligi(stats.spd), yuruHiz: yurumeHizi(stats.spd),
   };
   battle.units.push(unit);
   battle.deployed[side] = true;
@@ -72,22 +103,34 @@ export function tick(battle, dt) {
     player: kralAktifMi(battle, 'player'),
     enemy: kralAktifMi(battle, 'enemy'),
   };
+  // 1. geçiş: herkesin hedefi ve "yaklaşıyor mu" durumu. Ayrı geçiş şart — kalkan, birimlerin
+  // dizideki sırasına göre bir tick geç uygulanmasın diye vuruşlardan ÖNCE belirlenmeli.
+  const mesafeler = new Map();
   for (const u of battle.units) {
-    u.cooldown -= dt;
     const dusmanlar = battle.units.filter(o => o.side !== u.side && o.hp > 0);
-    if (!dusmanlar.length) continue;
-    // Hedef: en yakın canlı düşman (kuleler dahil)
+    if (!dusmanlar.length) { mesafeler.set(u, null); u.yaklasiyor = false; continue; }
     let hedef = dusmanlar[0], enYakin = Infinity;
     for (const d of dusmanlar) {
       const mesafe = Math.hypot(d.x - u.x, d.z - u.z);
       if (mesafe < enYakin) { enYakin = mesafe; hedef = d; }
     }
     u.target = hedef;
+    mesafeler.set(u, { hedef, enYakin });
+    // Menzile girmemiş yakın dövüşçü "yaklaşıyor" sayılır → aldığı hasar azalır (bkz. KURAL).
+    u.yaklasiyor = !u.tower && u.range < KURAL.yakinMenzil && enYakin > u.range;
+  }
+  // 2. geçiş: vuruş ve hareket.
+  for (const u of battle.units) {
+    u.cooldown -= dt;
+    const m0 = mesafeler.get(u);
+    if (!m0) continue;
+    const { hedef, enYakin } = m0;
     if (enYakin <= u.range) {
       if (u.tower === 'king' && !kralAktif[u.side]) continue; // uyuyan kral ateş etmez
       if (u.cooldown <= 0) {
-        hedef.hp -= u.atk * 0.5;
-        u.cooldown = 60 / u.spd;
+        const kalkan = hedef.yaklasiyor ? KURAL.yaklasmaKalkan : 1;
+        hedef.hp -= u.atk * KURAL.hasar * kalkan;
+        u.cooldown = u.vurusAralik;
         battle.events.push({ type: 'vurus', from: u, to: hedef });
         if (battle.events.length > 200) battle.events.shift();
       }
@@ -98,8 +141,8 @@ export function tick(battle, dt) {
       let hx = hedef.x, hz = hedef.z, dur = u.range;
       if (karsida && Math.abs(u.x - bx) > 0.25) { hx = bx; hz = 0; dur = 0; }
       const m = Math.hypot(hx - u.x, hz - u.z) || 1e-9;
-      // Menzile yürü: spd/25 birim/sn (menzil sınırını aşma)
-      const adim = Math.min((u.spd / 25) * dt, Math.max(m - dur, 0));
+      // Menzile yürü (menzil sınırını aşma)
+      const adim = Math.min(u.yuruHiz * dt, Math.max(m - dur, 0));
       u.x += ((hx - u.x) / m) * adim;
       u.z += ((hz - u.z) / m) * adim;
     }
@@ -152,10 +195,11 @@ export function fireCannon(battle) {
   return true;
 }
 
-export function battleRewards(rng = Math.random) {
+// Zafer ödülü seviyeyle büyür — 20. seviyedeki savaş 1. seviyedekiyle aynı parayı vermez.
+export function battleRewards(level = 1, rng = Math.random) {
   const loot = LOOT_TABLE[Math.floor(rng() * LOOT_TABLE.length)];
   const gems = rng() < GEM_DROP.chance
     ? GEM_DROP.min + Math.floor(rng() * (GEM_DROP.max - GEM_DROP.min + 1))
     : 0;
-  return { gold: BATTLE_WIN_GOLD, loot, gems };
+  return { gold: battleGold(level), loot, gems };
 }

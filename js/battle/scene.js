@@ -4,9 +4,12 @@
 // Brawl Stars dokunuşları: takım halkası, isimli can barı, çalılıklar, vuruş efektleri.
 import {
   createBattle, deployUnit, addTowers, tick, battleRewards,
-  applyPotion, fireCannon, equipRifle, spendElixir, ARENA, ELIXIR,
+  applyPotion, fireCannon, equipRifle, spendElixir, ARENA, ELIXIR, KURAL,
 } from './sim.js';
-import { CHARACTERS, enemyWave, isBossLevel, ITEM_NAMES, ELIXIR_COST } from '../balance.js';
+import {
+  CHARACTERS, enemyWave, enemyReinforcement, isBossLevel,
+  ITEM_NAMES, ELIXIR_COST, ENEMY_SPAWN, enemyGap, levelScale,
+} from '../balance.js';
 import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
 import { sfx } from '../ui/sound.js';
@@ -56,6 +59,7 @@ export function initBattle(state) {
   let tufekBekliyor = false;
   let sonucVerildi = false;
   let kuyruk = [];        // sürülmeyi bekleyen düşman dalgası
+  let kalanDalga = 0;     // kuyruk bitince kaç takviye dalgası daha gelecek
   let spawnT = 0;
   let laneI = 0;
   let prevUnits = new Set();
@@ -143,10 +147,11 @@ export function initBattle(state) {
   function baslat() {
     ekran.querySelector('.victory')?.remove();
     battle = createBattle(state.battleLevel);
-    addTowers(battle, 1 + 0.08 * (state.battleLevel - 1));
+    addTowers(battle, levelScale(state.battleLevel));
     secili = null; sonucVerildi = false; tufekBekliyor = false;
     kuyruk = enemyWave(state.battleLevel).slice();
-    spawnT = 1.5; laneI = 0;
+    kalanDalga = ENEMY_SPAWN.waves(state.battleLevel) - 1;
+    spawnT = ENEMY_SPAWN.first; laneI = 0;
     oklar = []; carpmalar = []; sayilar = []; pofler = [];
     prevUnits = new Set(battle.units);
     elCiz();
@@ -201,7 +206,7 @@ export function initBattle(state) {
     const panel = document.createElement('div');
     panel.className = 'victory';
     if (battle.winner === 'player') {
-      const odul = battleRewards();
+      const odul = battleRewards(battle.level);
       // altın iksiri ×2, boss seviyesi ×2 — ayrı katsayılar, çarpışmazlar
       const bossMult = isBossLevel(battle.level) ? 2 : 1;
       const kazanilanAltin = odul.gold * battle.goldMult * bossMult;
@@ -238,7 +243,7 @@ export function initBattle(state) {
       carpmalar.push({ x: ev.to.x, z: ev.to.z, t: -gec });
       if (sayilar.length < 30) {
         // Hedefin üstünde belirsin (ekran yukarısı = dünya -x), üst üste binmesin diye z'de yayılır.
-        sayilar.push({ x: ev.to.x - 0.9, z: ev.to.z + (Math.min(sayilar.length, 3) - 1) * 0.35, t: -gec, deger: Math.round(ev.from.atk * 0.5) });
+        sayilar.push({ x: ev.to.x - 0.9, z: ev.to.z + (Math.min(sayilar.length, 3) - 1) * 0.35, t: -gec, deger: Math.round(ev.from.atk * KURAL.hasar) });
       }
     }
     battle.events.length = 0;
@@ -535,7 +540,12 @@ export function initBattle(state) {
       let kalan = dt;
       while (kalan > 0) { tick(battle, Math.min(kalan, 0.05)); kalan -= 0.05; }
       spawnT -= dt;
-      if (kuyruk.length && spawnT <= 0) { dusmanSur(kuyruk.shift()); spawnT = 4.5; }
+      if (!kuyruk.length && kalanDalga > 0) { kuyruk = enemyReinforcement(battle.level); kalanDalga--; }
+      if (kuyruk.length && spawnT <= 0) {
+        const s = kuyruk.shift();
+        dusmanSur(s);
+        spawnT = enemyGap(battle.level, s.tip);
+      }
     }
     if (battle) {
       olayIsle();

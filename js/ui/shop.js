@@ -18,9 +18,16 @@ export function buyCharacter(state, charId) {
 
 const BADGE = { normal: ['n', 'Normal'], ultra: ['u', 'Ultra Özel'], invisible: ['i', 'Invisible'] };
 
+// Vitrin ucuzdan pahalıya dizilir (önce altınlılar, sonra taşlılar): çocuk "sıradaki neyi
+// alabilirim"i soldan sağa okuyabilsin. Kart tasarımı ve statlar Aslan'ın; yalnızca sıra.
+const TIER_SIRA = { normal: 0, ultra: 1, invisible: 2 };
+const fiyatOf = c => c.cost.gold ?? c.cost.gems;
+const VITRIN = [...CHARACTERS].sort((a, b) =>
+  TIER_SIRA[a.tier] - TIER_SIRA[b.tier] || fiyatOf(a) - fiyatOf(b));
+
 export function renderShop(state) {
   const root = document.getElementById('shop-ui');
-  const cards = CHARACTERS.map(c => {
+  const cards = VITRIN.map(c => {
     const sahip = state.ownedCharacters.includes(c.id);
     const [bk, bn] = BADGE[c.tier];
     const fiyat = 'gold' in c.cost ? `🪙 ${fmt(c.cost.gold)}` : `💎 ${fmt(c.cost.gems)}`;

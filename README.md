@@ -10,8 +10,8 @@ Aslan Yıldız'ın kendi çizimlerinden ve kendi belirlediği statlardan yapılm
 | --- | --- |
 | 🏰 **Köy** | 2D harita; binalara dokununca ilgili ekran açılır. |
 | ⚔️ **Savaş** | Kule–nehir–köprü arenası. İksir dolar, kart seçilir, sahaya sürülür. Her 5. seviye boss. |
-| 🪓 **İş** | Odun kesme; odun başına 2 🪙. |
-| ⛏️ **Maden** | 8 kaya, her biri 3 dokunuşta kırılır; %35 ihtimalle 1–3 💎. |
+| 🪓 **İş** | Odun kesme; odun başına 6 🪙. |
+| ⛏️ **Maden** | 8 kaya, her biri 3 dokunuşta kırılır; %55 ihtimalle 2–5 💎, yoksa 4 🪙. |
 | 🎒 **Envanter** | Toplanan eşyalar (kalkan, kılıç, yay, tüfek, iksirler). |
 | 🛒 **Dükkan** | Karakter satın alma (🪙 / 💎) ve eşya satma. |
 
