@@ -14,6 +14,9 @@ import { addGold, addGems, addItem } from '../state.js';
 import { refreshHud } from '../ui/hud.js';
 import { sfx } from '../ui/sound.js';
 import { show } from '../screens.js';
+import { birimSprite } from './sprites.js';
+
+const azHareket = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const IKSIRLER = [
   ['guc-iksiri', '💪'], ['altin-iksir', '✨'], ['mega-deprem-iksiri', '🌋'],
@@ -66,6 +69,7 @@ export function initBattle(state) {
   let oklar = [], carpmalar = [], sayilar = [], pofler = [];
   let elixFill = null, elixNum = null, sonElixTam = -1;
   let dpr = 1;
+  let zaman = 0;   // sprite animasyonları için biriken sahne süresi
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -259,6 +263,7 @@ export function initBattle(state) {
 
   // --- Çizim ---
   function ciz(dt) {
+    zaman += dt;
     const { s, cx, cy, w, h } = metrics();
     if (!w || !h) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -464,6 +469,15 @@ export function initBattle(state) {
     ctx.beginPath();
     ctx.ellipse(px, py + r * 0.62, r * 1.1, r * 0.45, 0, 0, Math.PI * 2);
     ctx.stroke();
+
+    // 3D modelden üretilmiş sprite varsa onu çiz; yoksa aşağıdaki jeton görünümüne düş.
+    const sp = birimSprite(u);
+    if (sp) {
+      spriteCiz(u, sp, px, py, r);
+      canBar(u, s, EX, EY, 1.5, py + r * 1.15, true);
+      return;
+    }
+
     // Jeton: kart görseli (oyuncu) ya da renkli disk + ikon (düşman)
     ctx.save();
     ctx.beginPath();
@@ -496,6 +510,25 @@ export function initBattle(state) {
     }
     // Birim etiketi ayakların altında: kuleye alttan yaklaşan birimler kule barıyla çakışmaz.
     canBar(u, s, EX, EY, 1.5, py + r * 1.15, true);
+  }
+
+  // Sprite çizimi. Sprite'lar kare, içerik alta hizalı ve sağa bakar (bkz. sprite.sh):
+  // alt kenar birimin ayağı sayılır, düşman tarafında yatay aynalanır.
+  function spriteCiz(u, sp, px, py, r) {
+    const boy = r * sp.boy;
+    const ayak = py + r * 0.62;   // takım halkasının merkezi = zemin teması
+    let dy = 0, dx = 0;
+    if (!azHareket) {
+      // Yürürken hafif zıplama, vuruştan hemen sonra hedefe doğru kısa atılma.
+      const faz = (u.x * 3.1 + u.z * 2.7);
+      if (u.yaklasiyor) dy = -Math.abs(Math.sin(zaman * 7 + faz)) * r * 0.14;
+      if (u.cooldown > u.vurusAralik * 0.75) dx = (u.side === 'player' ? 1 : -1) * r * 0.22;
+    }
+    ctx.save();
+    ctx.translate(px + dx, ayak + dy);
+    if (u.side !== 'player') ctx.scale(-1, 1);
+    ctx.drawImage(sp.gorsel, -boy / 2, -boy, boy, boy);
+    ctx.restore();
   }
 
   // Brawl Stars tarzı: isim + sayılı can barı. `adAltta` ise isim barın altına yazılır.

@@ -1,43 +1,112 @@
 <!DOCTYPE html>
-<!-- Geçici araç: GLB'yi 3/4 üstten açıyla şeffaf PNG'ye render eder. Repoya girmez. -->
+<!-- GLB'yi 3/4 üstten açıyla şeffaf, kırpılmış PNG sprite'a çevirir.
+     ./sprite.sh bu sayfayı headless Chrome'da açıp ekran görüntüsünü alır; o yüzden
+     çıktı pencereyi tam doldurur ve sayfa arka planı şeffaf kalır. -->
 <meta charset="utf-8">
+<title>render</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #out { display: block; width: 512px; height: 512px; }
+  #gl { display: none; }
+</style>
+
 <script type="importmap">
 {"imports": {"three": "./vendor/three.module.js",
              "three/addons/loaders/GLTFLoader.js": "./vendor/GLTFLoader.js"}}
 </script>
-<canvas id="c" width="1024" height="1024"></canvas>
+
 <script type="module">
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+render();
 
-const params = new URLSearchParams(location.search);
-const dosya = params.get('glb') ?? 'assets/tripo/kale.glb';
-const yaw = parseFloat(params.get('yaw') ?? '0');      // derece, model dönüşü
-const pitch = parseFloat(params.get('pitch') ?? '32'); // kamera yükseklik açısı
+async function render() {
+  const THREE = await import('three');
+  const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
 
-const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
-renderer.setClearColor(0x000000, 0);
-const scene = new THREE.Scene();
-scene.add(new THREE.AmbientLight(0xffffff, 1.1));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(6, 10, 8); scene.add(sun);
+  const params = new URLSearchParams(location.search);
+  const dosya = params.get('glb') ?? 'assets/tripo/kale.glb';
+  const yaw = parseFloat(params.get('yaw') ?? '0');      // derece, model dönüşü
+  const pitch = parseFloat(params.get('pitch') ?? '18'); // kamera yükseklik açısı
+  const boy = parseInt(params.get('size') ?? '512', 10); // çıktı kenarı (kare)
 
-new GLTFLoader().load(dosya, g => {
+  const glCanvas = document.getElementById('gl');
+  const out = document.getElementById('out');
+  out.width = out.height = boy;
+  const octx = out.getContext('2d');
+
+  const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setClearColor(0x000000, 0);
+  const scene = new THREE.Scene();
+  // Oyun içi ışık hissi: yumuşak ortam + üstten güneş + soğuk dolgu, sert gölge yok.
+  scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.7); sun.position.set(5, 10, 7); scene.add(sun);
+  const dolgu = new THREE.DirectionalLight(0xcfe4ff, 0.5); dolgu.position.set(-6, 3, -5); scene.add(dolgu);
+
+  let g;
+  try {
+    g = await new GLTFLoader().loadAsync(dosya);
+  } catch (e) {
+    document.title = 'HATA: ' + (e?.message ?? e);
+    return;
+  }
+
   const m = g.scene;
   m.rotation.y = yaw * Math.PI / 180;
   scene.add(m);
-  // Modeli ortala ve sığdır
+
   const box = new THREE.Box3().setFromObject(m);
   const merkez = box.getCenter(new THREE.Vector3());
   const boyut = box.getSize(new THREE.Vector3());
   const r = Math.max(boyut.x, boyut.y, boyut.z);
   const cam = new THREE.PerspectiveCamera(30, 1, 0.01, r * 20);
-  const uzak = r * parseFloat(params.get('d') ?? '2.1');
+  const uzak = r * parseFloat(params.get('d') ?? '2.4');
   const rad = pitch * Math.PI / 180;
   cam.position.set(merkez.x, merkez.y + Math.sin(rad) * uzak, merkez.z + Math.cos(rad) * uzak);
   cam.lookAt(merkez);
   renderer.render(scene, cam);
-  window.spriteData = canvas.toDataURL('image/png');
+
+  // Şeffaf kenarları kırp, sonucu çıktı karesine ORTALI + ALTA HİZALI yerleştir.
+  // Alta hizalama şart: oyunda sprite'ın alt kenarı birimin ayağı sayılıyor.
+  const w = glCanvas.width, h = glCanvas.height;
+  const tmp = document.createElement('canvas');
+  tmp.width = w; tmp.height = h;
+  const tctx = tmp.getContext('2d');
+  tctx.drawImage(glCanvas, 0, 0);
+  const veri = tctx.getImageData(0, 0, w, h).data;
+
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (veri[(y * w + x) * 4 + 3] > 8) {
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) { document.title = 'HATA: model boş render edildi'; return; }
+
+  const kw = x1 - x0 + 1, kh = y1 - y0 + 1;
+  const pad = Math.round(boy * 0.02);
+  const olcek = Math.min((boy - pad * 2) / kw, (boy - pad * 2) / kh);
+  const dw = kw * olcek, dh = kh * olcek;
+  octx.clearRect(0, 0, boy, boy);
+  octx.drawImage(tmp, x0, y0, kw, kh, (boy - dw) / 2, boy - pad - dh, dw, dh);
+
+  // ?dl=<ad> ile sayfa PNG'yi kendisi indirir. sprite.sh bunu kullanıyor: headless
+  // Chrome'un --screenshot'ı `load` anında tetiklendiği için GLB'ye yetişemiyor,
+  // indirme ise render bittikten sonra istendiği an gerçekleşiyor.
+  const indir = params.get('dl');
+  if (indir) {
+    const a = document.createElement('a');
+    a.href = out.toDataURL('image/png');
+    a.download = indir + '.png';
+    document.body.appendChild(a);
+    a.click();
+  }
   document.title = 'HAZIR';
-}, undefined, e => { document.title = 'HATA: ' + e; });
+}
 </script>
+
+<canvas id="gl" width="1400" height="1400"></canvas>
+<canvas id="out"></canvas>

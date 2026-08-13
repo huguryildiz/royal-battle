@@ -4,12 +4,14 @@ const S = 'assets/kenney/medieval-2d/';
 
 // Tıklanabilir binalar: [hedef, sprite, simge, etiket, x%, y%, genişlik%]
 // Etiketler alt sekme adlarıyla birebir aynı (Maden'in sekmesi yok, tek kapısı burası).
+// Sprite'lar Tripo modellerinden render: ./sprite.sh bina-<ad> 0 18
+// (yaw 0 şart — Tripo binanın ön yüzünü +Z'ye koyuyor, 90'da yandan bakılıyor.)
 const BINALAR = [
-  ['savas',    'medievalStructure_05', '⚔️', 'Savaş',    85, 38, 13],
-  ['is',       'medievalStructure_21', '🪓', 'İş',       15, 30, 14],
-  ['maden',    'medievalStructure_08', '⛏️', 'Maden',    14, 74, 11],
-  ['envanter', 'medievalStructure_19', '🎒', 'Envanter', 48, 78, 13],
-  ['dukkan',   'medievalStructure_22', '🛒', 'Dükkan',   82, 76, 11],
+  ['savas',    'assets/sprites/bina-savas.png',    '⚔️', 'Savaş',    85, 38, 15],
+  ['is',       'assets/sprites/bina-is.png',       '🪓', 'İş',       15, 30, 15],
+  ['maden',    'assets/sprites/bina-maden.png',    '⛏️', 'Maden',    14, 74, 13],
+  ['envanter', 'assets/sprites/bina-envanter.png', '🎒', 'Envanter', 48, 78, 14],
+  ['dukkan',   'assets/sprites/bina-dukkan.png',   '🛒', 'Dükkan',   82, 76, 13],
 ];
 
 // Dekor: [sprite, x%, y%, genişlik%]
@@ -51,7 +53,7 @@ export function initVillage({ root, onBuildingTap }) {
   const binalar = BINALAR.map(([hedef, sprite, simge, etiket, x, y, w]) =>
     `<button class="bldg" type="button" data-hedef="${hedef}" aria-label="${etiket}"
              style="left:${x}%;top:${y}%;width:${w}%;z-index:${Math.round(y)}">
-       <img src="${S}${sprite}.png" alt="" draggable="false">
+       <img src="${sprite.includes('/') ? sprite : S + sprite + '.png'}" alt="" draggable="false">
        <span class="plaque">${simge} ${etiket}</span>
      </button>`).join('');
   root.innerHTML = `<div id="vboard">
