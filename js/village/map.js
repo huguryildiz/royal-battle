@@ -15,25 +15,27 @@ const BINALAR = [
 ];
 
 // Dekor: [sprite, x%, y%, genişlik%]
+// Tripo render'ları tam yolla, Kenney sprite'ları çıplak adla yazılır.
+const D = 'assets/sprites/';
 const DEKOR = [
   ['assets/tripo/kale.png', 50, 26, 16],           // kale (merkez, Tripo 3D'den render)
-  ['medievalStructure_16', 33, 52, 8],             // evler
-  ['medievalStructure_17', 65, 54, 8],
-  ['medievalStructure_18', 70, 16, 8],
-  ['medievalEnvironment_03', 6, 22, 5],            // İş çevresi: ağaçlar
+  [D + 'dekor-ev-a.png', 33, 52, 9],               // evler
+  [D + 'dekor-ev-b.png', 65, 54, 9],
+  [D + 'dekor-ev-a.png', 70, 16, 8],
+  ['medievalEnvironment_03', 6, 22, 5],            // İş çevresi: çamlar (Tripo çamı beklemede)
   ['medievalEnvironment_01', 24, 20, 4],
-  ['medievalEnvironment_02', 9, 40, 4],
-  ['medievalEnvironment_21', 40, 10, 4],
+  [D + 'dekor-agac.png', 9, 40, 6],                // yapraklı ağaçlar
+  [D + 'dekor-agac.png', 40, 10, 5],
   ['medievalEnvironment_03', 58, 8, 5],
-  ['medievalEnvironment_01', 92, 62, 4],
-  ['medievalEnvironment_05', 22, 38, 5],           // kütük
-  ['medievalEnvironment_17', 5, 84, 5],            // Maden çevresi: cevher kayaları
-  ['medievalEnvironment_11', 24, 80, 5],
-  ['medievalEnvironment_07', 30, 90, 4],
-  ['medievalEnvironment_16', 10, 62, 4],
-  ['medievalEnvironment_07', 70, 88, 4],           // serpiştirme taş/çalı
-  ['medievalEnvironment_12', 44, 44, 3],
-  ['medievalEnvironment_19', 90, 16, 3],
+  [D + 'dekor-agac.png', 92, 62, 6],
+  [D + 'dekor-kutuk.png', 22, 38, 5],              // kütük
+  [D + 'dekor-cevher.png', 5, 84, 6],              // Maden çevresi: cevher kayaları
+  [D + 'dekor-cevher.png', 24, 80, 5],
+  [D + 'dekor-tas.png', 30, 90, 5],
+  [D + 'dekor-tas.png', 10, 62, 4],
+  [D + 'dekor-tas.png', 70, 88, 5],                // serpiştirme taş
+  [D + 'dekor-tas.png', 44, 44, 3],
+  [D + 'dekor-tas.png', 90, 16, 3],
 ];
 
 // Köy yolu: kale önünden binalara kıvrılan patika (viewBox 0-100).

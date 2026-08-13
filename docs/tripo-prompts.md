@@ -226,11 +226,17 @@ duvarı olmuyor, ve dekor her yönden bakılabilir olduğu için kadraj serbest.
 ### dekor-cam — Çam ağacı
 
 ```
-A LEGO-style toy pine tree with three stacked dark green conical branch layers and
-a short reddish-brown trunk. LEGO-style toy scenery piece built from chunky moulded bricks, glossy plastic
+A LEGO-style toy pine tree shaped as one tall narrow cone tapering to a single
+point at the top, built from four stacked dark green tiers that get smaller
+towards the top, mounted on a short brown cylindrical trunk, the trunk ending
+bare at the bottom with nothing underneath it. LEGO-style toy scenery piece built from chunky moulded bricks, glossy plastic
 finish, bold saturated colors, clean readable silhouette, no ground plane,
 no base plate, no background, single object only
 ```
+
+> İlk deneme başarısızdı: model dağınık bir yeşil yığın çıktı, koni oluşmadı ve
+> altına kırmızı bir taban plakası geldi. Prompt yukarıda sıkılaştırıldı — koninin
+> tek tepe noktası ve gövdenin altının boş olduğu açıkça söyleniyor.
 
 ### dekor-agac — Yapraklı ağaç
 
